@@ -20,6 +20,7 @@ class mobile_task_temperature(models.Model):
     online_time     = models.DateTimeField(null = True, auto_now_add = False, verbose_name = u"online_time")
     is_valid        = models.IntegerField(blank = False, null = True,  verbose_name = u"is_valid")
     filesize        = models.BigIntegerField(blank = False, null = True,  verbose_name = u"filesize")
+    temperature0    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature0")
     temperature1    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature1")
     temperature2    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature2")
     temperature3    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature3")    
@@ -27,9 +28,6 @@ class mobile_task_temperature(models.Model):
     temperature5    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature5")
     temperature6    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature6") 
     temperature7    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature7")
-    temperature8    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature8")
-    temperature9    = models.FloatField(blank = False, null = True,  verbose_name = u"temperature9")    
-    temperature10   = models.FloatField(blank = False, null = True,  verbose_name = u"temperature10")
     
     class Meta:
         db_table    = "mobile_task_temperature"
@@ -43,6 +41,7 @@ class mobile_task_temperature(models.Model):
         dic['online_time']      = self.online_time.strftime("%Y-%m-%d %H:%M:%S")
         dic['is_valid']         = str(self.is_valid)
         dic['filesize']         = str(self.filesize)
+        dic['temperature0']     = str(self.temperature0)
         dic['temperature1']     = str(self.temperature1)
         dic['temperature2']     = str(self.temperature2)
         dic['temperature3']     = str(self.temperature3)
@@ -50,8 +49,5 @@ class mobile_task_temperature(models.Model):
         dic['temperature5']     = str(self.temperature5)
         dic['temperature6']     = str(self.temperature6)
         dic['temperature7']     = str(self.temperature7)
-        dic['temperature8']     = str(self.temperature8)
-        dic['temperature9']     = str(self.temperature9)
-        dic['temperature10']    = str(self.temperature10)
         return dic
         

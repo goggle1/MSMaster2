@@ -170,7 +170,7 @@ def room_list_find(room_list, room_id):
 
 def do_add_hot_tasks(platform, record):
     now_time = time.localtime(time.time())        
-    begin_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     record.begin_time = begin_time
     record.status = 1
     record.save()
@@ -186,7 +186,7 @@ def do_add_hot_tasks(platform, record):
     ms_list = get_ms_list_in_room(platform, room_id)
     if(len(ms_list) <= 0):
         now_time = time.localtime(time.time())        
-        end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+        end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
         output = 'now: %s, ' % (end_time)
         output += 'room_id: %s, ' % (room_id)
         output += 'suggest_task_number: %d, ' % (suggest_task_number)
@@ -212,7 +212,7 @@ def do_add_hot_tasks(platform, record):
             
     if(total_dispatch_num <= 0):
         now_time = time.localtime(time.time())        
-        end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+        end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
         output = 'now: %s, ' % (end_time)
         output += 'room_id: %s, ' % (room_id)
         output += 'suggest_task_number: %d, ' % (suggest_task_number)
@@ -234,38 +234,31 @@ def do_add_hot_tasks(platform, record):
             
     num = 0
     result = False
-    #all_tasks = task.views.get_tasks_local(platform) 
-    #print 'tasks count: %d' % (all_tasks.count())
-    #hot_tasks = all_tasks.order_by('-hot')
-    #hot_tasks = all_tasks.filter(hot__gt=0).order_by('-hot')
-    hot_tasks = task.views.get_hot_tasks_local(platform)
+    all_tasks = task.views.get_tasks_local(platform)
+    hot_tasks = all_tasks.order_by('-temperature0')
     print 'hot_tasks count: %d' % (hot_tasks.count())
     #for task1 in hot_tasks:
     for task1 in hot_tasks.iterator():
-        #print 'hot task: %d, %s' % (task1.hot, task1.hash)
         one_ms = ms_all.find_task(task1.hash)
         if(one_ms == None):                        
             result = ms_all.dispatch_hot_task(task1.hash)
             if(result == None):
-                #print '%d, %s, can not be dispatched\n' % (task1.hot, task1.hash) 
-                log_file.write('%d, %s, can not be dispatched\n' % (task1.hot, task1.hash))                
+                log_file.write('%e, %s, can not be dispatched\n' % (task1.temperature0, task1.hash))                
                 break
             else:
-                #print '%d, %s, dispatched to %d, %s' % (task1.hot, task1.hash, result.db_record.server_id, result.db_record.controll_ip)
-                log_file.write('%d, %s, dispatched to %d, %s\n' % (task1.hot, task1.hash, result.db_record.server_id, result.db_record.controll_ip))
+                log_file.write('%e, %s, dispatched to %d, %s\n' % (task1.temperature0, task1.hash, result.db_record.server_id, result.db_record.controll_ip))
             num += 1
             if(num >= total_dispatch_num):
                 break
         else:
-            #print '%d, %s, exist at %d, %s' % (task1.hot, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip)
-            log_file.write('%d, %s, exist at %d, %s\n' % (task1.hot, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))
+            log_file.write('%e, %s, exist at %d, %s\n' % (task1.temperature0, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))
     
     log_file.close()    
     
     ms_all.do_dispatch()
             
     now_time = time.localtime(time.time())        
-    end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     output = 'now: %s, ' % (end_time)
     output += 'room_id: %s, ' % (room_id)
     output += 'suggest_task_number: %d, ' % (suggest_task_number)
@@ -284,7 +277,7 @@ def do_add_hot_tasks(platform, record):
 
 def do_delete_cold_tasks(platform, record):
     now_time = time.localtime(time.time())        
-    begin_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     record.begin_time = begin_time
     record.status = 1
     record.save()
@@ -300,7 +293,7 @@ def do_delete_cold_tasks(platform, record):
     ms_list = get_ms_list_in_room(platform, room_id)
     if(len(ms_list) <= 0):
         now_time = time.localtime(time.time())        
-        end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+        end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
         output = 'now: %s, ' % (end_time)
         output += 'room_id: %s, ' % (room_id)
         output += 'suggest_task_number: %d, ' % (suggest_task_number)
@@ -326,7 +319,7 @@ def do_delete_cold_tasks(platform, record):
     
     if(total_delete_num <= 0):
         now_time = time.localtime(time.time())        
-        end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+        end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
         output = 'now: %s, ' % (end_time)
         output += 'room_id: %s, ' % (room_id)
         output += 'suggest_task_number: %d, ' % (suggest_task_number)
@@ -351,7 +344,7 @@ def do_delete_cold_tasks(platform, record):
         
     # rule 1:
     log_file.write('rule 1 begin\n')
-    cold_tasks = all_tasks.filter(cold1__lt=-10.0).order_by('cold1', 'hot')
+    cold_tasks = all_tasks.order_by('temperature0')
     print 'cold_tasks count: %d' % (cold_tasks.count())
     for task1 in cold_tasks.iterator():
         one_ms = ms_all.find_task(task1.hash)
@@ -359,54 +352,24 @@ def do_delete_cold_tasks(platform, record):
             #print '%s delete' % (task1.hash)            
             result = ms_all.delete_cold_task(one_ms, task1.hash)
             if(result == True):
-                log_file.write('[%s, %d, %f]%s delete from %d, %s\n' % (task1.online_time, task1.hot, task1.cold1, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))
+                log_file.write('[%s, %e]%s delete from %d, %s\n' % (task1.online_time, task1.temperature0, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))
                 real_delete_num += 1
                 if(real_delete_num >= total_delete_num):
                     break
             else:
-                log_file.write('[%s, %d, %f]%s marked\n' % (task1.online_time, task1.hot, task1.cold1, task1.hash))
+                log_file.write('[%s, %e]%s marked\n' % (task1.online_time, task1.temperature0, task1.hash))
         else:
             #print '%s non_exist' % (task1.hash)
-            log_file.write('[%s, %d, %f]%s non_exist\n' % (task1.online_time, task1.hot, task1.cold1, task1.hash))
+            log_file.write('[%s, %e]%s non_exist\n' % (task1.online_time, task1.temperature0, task1.hash))
     log_file.write('rule 1 end\n')
     print 'after rule 1, total_delete_num=%d, real_delete_num=%d' % (total_delete_num, real_delete_num) 
-        
-    # rule 2:    
-    if(real_delete_num < total_delete_num):
-        log_file.write('rule 2 begin\n')
-        now = datetime.datetime.now()
-        day_delta = 10
-        days_ago = now - datetime.timedelta(days=day_delta)
-        time_limit = '%04d-%02d-%02d 00:00:00+00:00' % (days_ago.year, days_ago.month, days_ago.day)
-        cold_tasks = all_tasks.filter(online_time__lt=time_limit).order_by('hot')
-        print 'cold_tasks count: %d' % (cold_tasks.count())
-        #cold_tasks2 = cold_tasks.filter(hot__lt=300)
-        cold_tasks2 = cold_tasks
-        print 'cold_tasks2 count: %d' % (cold_tasks2.count())
-        #for task1 in cold_tasks:
-        for task1 in cold_tasks2.iterator():
-            one_ms = ms_all.find_task(task1.hash)
-            if(one_ms != None):
-                #print '%s delete' % (task1.hash)                
-                result = ms_all.delete_cold_task(one_ms, task1.hash)
-                if(result == True):
-                    log_file.write('[%s, %d, %f]%s delete from %d, %s\n' % (task1.online_time, task1.hot, task1.cold1, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))                    
-                    real_delete_num += 1
-                    if(real_delete_num >= total_delete_num):
-                        break
-                else:
-                    log_file.write('[%s, %d, %f]%s delete from %d, %s\n' % (task1.online_time, task1.hot, task1.cold1, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))
-            else:
-                #print '%s non_exist' % (task1.hash)
-                log_file.write('[%s, %d, %f]%s non_exist\n' % (task1.online_time, task1.hot, task1.cold1, task1.hash))
-        log_file.write('rule 2 end\n')
-        print 'after rule 2, total_delete_num=%d, real_delete_num=%d' % (total_delete_num, real_delete_num)         
+         
     log_file.close()
     
     ms_all.do_delete()
         
     now_time = time.localtime(time.time())        
-    end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     output = 'now: %s, ' % (end_time)
     output += 'room_id: %s, ' % (room_id)
     output += 'suggest_task_number: %d, ' % (suggest_task_number)
@@ -425,7 +388,7 @@ def do_delete_cold_tasks(platform, record):
     
 def do_sync_room_db(platform, record):
     now_time = time.localtime(time.time())        
-    begin_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     record.begin_time = begin_time
     record.status = 1
     record.save()
@@ -463,7 +426,7 @@ def do_sync_room_db(platform, record):
             num_delete += 1  
     
     now_time = time.localtime(time.time())        
-    end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     record.end_time = end_time
     record.status = 2        
     output = 'now: %s, ' % (end_time)
@@ -478,7 +441,7 @@ def do_sync_room_db(platform, record):
     
 def do_sync_room_status(platform, record):
     now_time = time.localtime(time.time())        
-    begin_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     record.begin_time = begin_time
     record.status = 1
     record.save()
@@ -505,7 +468,7 @@ def do_sync_room_status(platform, record):
         room.save()
                 
     now_time = time.localtime(time.time())        
-    end_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     output = 'now: %s, ' % (end_time)
     output += 'room num: %s, ' % (len(rooms))
     output += 'ms num: %d, ' % (ms_num)
@@ -588,15 +551,16 @@ def sync_room_db(request, platform):
     
     now_time = time.localtime(time.time())
     today = time.strftime("%Y-%m-%d", now_time)
-    dispatch_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     
+     
     operation1 = {}
     operation1['type'] = 'sync_room_db'
     operation1['name'] = today
     operation1['user'] = request.user.username
     operation1['dispatch_time'] = dispatch_time
     operation1['memo'] = ''
-        
+            
     return_datas = {}
     output = ''
     records = operation.views.get_operation_undone_by_type(platform, operation1['type'])
@@ -605,8 +569,8 @@ def sync_room_db(request, platform):
             output += 'operation exist, id=%d, type=%s, name=%s, dispatch_time=%s, status=%d' % (record.id, record.type, record.name, record.dispatch_time, record.status)
         return_datas['success'] = False
         return_datas['data'] = output
-        return HttpResponse(json.dumps(return_datas)) 
-    
+        return HttpResponse(json.dumps(return_datas))
+   
     record = operation.views.create_operation_record_by_dict(platform, operation1)
     if(record == None):
         output += 'operation create failure'
@@ -658,7 +622,7 @@ def add_hot_tasks(request, platform):
     the_room.save()    
    
     now_time = time.localtime(time.time())    
-    dispatch_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     
     operation1 = {}
     operation1['type'] = 'add_hot_tasks'
@@ -725,7 +689,7 @@ def delete_cold_tasks(request, platform):
     the_room.save()    
    
     now_time = time.localtime(time.time())    
-    dispatch_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     
     operation1 = {}
     operation1['type'] = 'delete_cold_tasks'
@@ -779,7 +743,7 @@ def sync_room_status(request, platform):
     
     now_time = time.localtime(time.time())
     today = time.strftime("%Y-%m-%d", now_time)
-    dispatch_time = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", now_time)
+    dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     
     operation1 = {}
     operation1['type'] = 'sync_room_status'

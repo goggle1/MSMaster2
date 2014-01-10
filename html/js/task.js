@@ -91,16 +91,14 @@ var taskJS = function(){
 				'online_time',
 				'is_valid',
 				'filesize',
+				'temperature0',
 				'temperature1',
 				'temperature2',
 				'temperature3',
 				'temperature4',
 				'temperature5',
 				'temperature6',
-				'temperature7',
-				'temperature8',
-				'temperature9',
-				'temperature10'
+				'temperature7'
 			]
 		});
 
@@ -112,16 +110,14 @@ var taskJS = function(){
 			{header : 'online_time', id : 'online_time', dataIndex : 'online_time', sortable : true},
 			{header : 'is_valid', id : 'hot', dataIndex : 'hot', sortable : true, hidden: true},
 			{header : 'filesize', id : 'filesize', dataIndex : 'filesize', sortable : true},
+			{header : 'temperature0', id : 'temperature0', dataIndex : 'temperature0', sortable : true},
 			{header : 'temperature1', id : 'temperature1', dataIndex : 'temperature1', sortable : true},
 			{header : 'temperature2', id : 'temperature2', dataIndex : 'temperature2', sortable : true},
 			{header : 'temperature3', id : 'temperature3', dataIndex : 'temperature3', sortable : true},
 			{header : 'temperature4', id : 'temperature4', dataIndex : 'temperature4', sortable : true},
 			{header : 'temperature5', id : 'temperature5', dataIndex : 'temperature5', sortable : true},
 			{header : 'temperature6', id : 'temperature6', dataIndex : 'temperature6', sortable : true},
-			{header : 'temperature7', id : 'temperature7', dataIndex : 'temperature7', sortable : true},
-			{header : 'temperature8', id : 'temperature8', dataIndex : 'temperature8', sortable : true},
-			{header : 'temperature9', id : 'temperature9', dataIndex : 'temperature9', sortable : true},
-			{header : 'temperature10', id : 'temperature10', dataIndex : 'temperature10', sortable : true, width: 150}
+			{header : 'temperature7', id : 'temperature7', dataIndex : 'temperature7', sortable : true, width: 150}
 		]);
 		
 		var task_page = new Ext.PagingToolbar({

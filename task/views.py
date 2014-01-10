@@ -37,39 +37,35 @@ def task_hits_insert(platform, hash_id, v_time, v_hits_num):
         hash_local.save()
         
 
-def task_temperature_insert(platform, hash_id, v_online_time, v_is_valid, v_filesize, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10):
+def task_temperature_insert(platform, hash_id, v_online_time, v_is_valid, v_filesize, v0, v1, v2, v3, v4, v5, v6, v7):
     if(platform == 'mobile'):
         hash_local = models.mobile_task_temperature(hash= hash_id,          \
                                         online_time     = v_online_time,    \
                                         is_valid        = v_is_valid,       \
                                         filesize        = v_filesize,       \
+                                        temperature0    = v0,               \
                                         temperature1    = v1,               \
                                         temperature2    = v2,               \
                                         temperature3    = v3,               \
                                         temperature4    = v4,               \
                                         temperature5    = v5,               \
                                         temperature6    = v6,               \
-                                        temperature7    = v7,               \
-                                        temperature8    = v8,               \
-                                        temperature9    = v9,               \
-                                        temperature10   = v10               \
+                                        temperature7    = v7               \
                                         ) 
         hash_local.save()
     elif(platform == 'pc'):
-        hash_local = models.pc_task_temperature(hash    = hash_id,          \
+        hash_local = models.pc_task_temperature(hash= hash_id,          \
                                         online_time     = v_online_time,    \
                                         is_valid        = v_is_valid,       \
                                         filesize        = v_filesize,       \
+                                        temperature0    = v0,               \
                                         temperature1    = v1,               \
                                         temperature2    = v2,               \
                                         temperature3    = v3,               \
                                         temperature4    = v4,               \
                                         temperature5    = v5,               \
                                         temperature6    = v6,               \
-                                        temperature7    = v7,               \
-                                        temperature8    = v8,               \
-                                        temperature9    = v9,               \
-                                        temperature10   = v10               \
+                                        temperature7    = v7               \
                                         ) 
         hash_local.save()
         
@@ -91,14 +87,6 @@ def get_tasks_hits(platform):
         task_list = models.pc_task_hits.objects.all()    
     return task_list
 
-
-def get_hot_tasks_local(platform):
-    task_list = None
-    if(platform == 'mobile'):
-        task_list = models.mobile_task.objects.filter(hot__gt=0).order_by('-hot')        
-    elif(platform == 'pc'):
-        task_list = models.pc_task.objects.filter(hot__gt=0).order_by('-hot') 
-    return task_list
 
 def get_cold_tasks_rule1(platform):
     task_list = []
@@ -248,11 +236,11 @@ def down_hot_tasks(request, platform):
     task_num = request.REQUEST['task_num']
     
     tasks = get_tasks_local(platform) 
-    tasks2 = tasks.order_by('-temperature1')[0:task_num]
+    tasks2 = tasks.order_by('-temperature0')[0:task_num]
     
     output = ''
     for task in tasks2:
-        output += '%s,%s,%e\n' % (task.hash, task.online_time, task.temperature1)
+        output += '%s,%s,%e\n' % (task.hash, task.online_time, task.temperature0)
             
     response = HttpResponse(output, content_type='text/comma-separated-values')
     response['Content-Disposition'] = 'attachment; filename=hot_tasks_%s_%s.csv' % (platform, task_num)
@@ -266,11 +254,11 @@ def down_cold_tasks(request, platform):
     task_num = request.REQUEST['task_num']
         
     tasks = get_tasks_local(platform)  
-    tasks2 = tasks.order_by('temperature1')[0:task_num]
+    tasks2 = tasks.order_by('temperature0')[0:task_num]
        
     output = ''
     for task in tasks2:
-        output += '%s,%s,%e\n' % (task.hash, task.online_time, task.temperature1)
+        output += '%s,%s,%e\n' % (task.hash, task.online_time, task.temperature0)
     
     response = HttpResponse(output, content_type='text/comma-separated-values')
     response['Content-Disposition'] = 'attachment; filename=cold_tasks_%s_%s.csv' % (platform, task_num)
@@ -586,8 +574,8 @@ def do_calc_temperature(platform, record):
             if(days_num < 0):
                 days_num = 0
             task_temperature = task_temperature + MEAN_HITS_NUM*(ALPHA**days_num)            
-        task.temperature1 = task_temperature;
-        print '%s, %e' % (task.hash, task.temperature1)
+        task.temperature0 = task_temperature;
+        print '%s, %e' % (task.hash, task.temperature0)
         task.save()
         num_calc += 1
         
@@ -676,7 +664,7 @@ def do_sync_all(platform, record):
         if(len(hash_list) <= 0):
             print 'insert'
             is_valid = 2
-            task_temperature_insert(platform, hash_id, online_time, is_valid, filesize, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  
+            task_temperature_insert(platform, hash_id, online_time, is_valid, filesize, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  
             num_insert += 1    
         else:      
             print 'update' 
@@ -746,7 +734,7 @@ def do_sync_partial(platform, record):
         if(len(hash_list) <= 0):
             print 'insert'
             is_valid = 1
-            task_temperature_insert(platform, hash_id, online_time, is_valid, filesize, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  
+            task_temperature_insert(platform, hash_id, online_time, is_valid, filesize, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  
             num_insert += 1 
         else:      
             print 'update'

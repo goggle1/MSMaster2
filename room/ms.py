@@ -36,10 +36,10 @@ class MS_INFO:
         
         
 class MS_ALL:
-    #MACROSS_IP = '192.168.160.128'
-    #MACROSS_PORT = 80
-    MACROSS_IP = 'macross.funshion.com'
-    MACROSS_PORT = 27777
+    MACROSS_IP = '192.168.160.128'
+    MACROSS_PORT = 80
+    #MACROSS_IP = 'macross.funshion.com'
+    #MACROSS_PORT = 27777
     BATCH_NUM = 2000
     
     def __init__(self, v_platform, v_ms_list, v_ms_id_list = None):
