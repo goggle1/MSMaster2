@@ -10,7 +10,7 @@ Ext.onReady(function() {
 		items: [{
 			region : 'north',
 			xtype : 'panel',
-			title : 'MediaServer管理系统',
+			title : 'MediaServer管理系统II',
 			border : false
 		}, {
 			region : 'west',
@@ -56,13 +56,13 @@ Ext.onReady(function() {
 			items: [{
 				title : '欢迎',
 				align : 'center',
-				html: '<table height="100%" width="100%"><tr align="center"><td><p style="font-size:36px;">欢迎登录MediaServer管理系统<br/>0.0.1</p></td></tr></table>'
+				html: '<table height="100%" width="100%"><tr align="center"><td><p style="font-size:36px;">欢迎登录MediaServer管理系统II<br/>0.0.1</p></td></tr></table>'
 			}],
 			plugins:new Ext.ux.TabCloseMenu()
 		}, {
 			region: 'south',
 			xtype : 'panel',
-			title: 'MediaServer管理系统'
+			title: 'MediaServer管理系统II'
 			+'<select style="margin-left:30px;" onchange="changeExtJsStyleCss(this)">'
 			+'<option value="">请选择皮肤</option>'
 			+'<option value="xtheme-blue.css">Default</option>'

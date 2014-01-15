@@ -12,6 +12,7 @@ import DB.db
 #from DB.db import DB_CONFIG
 #from DB.db import *
 import operation.views
+import config.views
 import threading
 import datetime
 from multiprocessing import Process
@@ -274,16 +275,16 @@ def get_tasks_macross_mobile(begin_date, end_date):
     where_condition = ''
     if(len(begin_date) > 0):
         begin_time = '%s-%s-%s 00:00:00' % (begin_date[0:4], begin_date[4:6], begin_date[6:8])
-        where_condition += " and create_time >= '%s'" % (begin_time)
+        where_condition += " where create_time >= '%s'" % (begin_time)
     if(len(end_date) > 0):
         end_time = '%s-%s-%s 00:00:00' % (end_date[0:4], end_date[4:6], end_date[6:8])
         where_condition += " and create_time < '%s'" % (end_time)
     
     db = DB.db.DB_MYSQL()
     db.connect(DB.db.DB_CONFIG.host, DB.db.DB_CONFIG.port, DB.db.DB_CONFIG.user, DB.db.DB_CONFIG.password, DB.db.DB_CONFIG.db)
-    
-    #sql = "select dat_hash, create_time from fs_mobile_dat where state!='dismissed' " + where_condition
-    sql = "select dat_hash, create_time, filesize from fs_mobile_dat where state!='dismissed' " + where_condition           
+        
+    #sql = "select dat_hash, create_time, filesize from fs_mobile_dat where state!='dismissed' " + where_condition           
+    sql = "select dat_hash, create_time, filesize from fs_mobile_dat" + where_condition
     print sql
     db.execute(sql)
     
@@ -301,7 +302,7 @@ def get_tasks_macross_mobile(begin_date, end_date):
         task_list.append(task1)
     print 'task_list num: %d' % (len(task_list))
     
-    sql = "select video_hash, create_time, filesize from fs_video_dat where state!='dismissed' " + where_condition           
+    sql = "select video_hash, create_time, filesize from fs_video_dat" + where_condition           
     print sql
     db.execute(sql)
     
@@ -328,12 +329,10 @@ def get_tasks_macross_pc(begin_date, end_date):
     task_list = []
     sql = ""
     
-    #reload(sys)
-    #sys.setdefaultencoding('utf8')
     where_condition = ''
     if(len(begin_date) > 0):
         begin_time = '%s-%s-%s 00:00:00' % (begin_date[0:4], begin_date[4:6], begin_date[6:8])
-        where_condition += " and fs_task.create_time >= '%s'" % (begin_time)
+        where_condition += " where fs_task.create_time >= '%s'" % (begin_time)
     if(len(end_date) > 0):
         end_time = '%s-%s-%s 00:00:00' % (end_date[0:4], end_date[4:6], end_date[6:8])
         where_condition += " and fs_task.create_time < '%s'" % (end_time)
@@ -344,7 +343,7 @@ def get_tasks_macross_pc(begin_date, end_date):
     #where_condition = " and fs_task.task_hash='92A20D164F8D5F18F2433E9CB39703E2A381EDDC'"
     #sql = "select task_hash, create_time from fs_task where state!='dismissed' " + where_condition
     #sql = "select t.task_hash, t.create_time, d.file_size from fs_task t, fs_dat_file d where t.task_hash=d.hashid and t.state!='dismissed' " + where_condition
-    sql = "select fs_task.task_hash, fs_task.create_time, fs_dat_file.file_size from fs_task LEFT JOIN fs_dat_file ON fs_task.task_hash=fs_dat_file.hashid where fs_task.state!='dismissed'" + where_condition              
+    sql = "select fs_task.task_hash, fs_task.create_time, fs_dat_file.file_size from fs_task LEFT JOIN fs_dat_file ON fs_task.task_hash=fs_dat_file.hashid" + where_condition              
     print sql
     db.execute(sql)
     
@@ -366,6 +365,67 @@ def get_tasks_macross_pc(begin_date, end_date):
     return task_list
 
 
+def add_tasks_local(platform, task_list):    
+    table = '%s_task_temperature' % (platform)
+    
+    db = DB.db.DB_MYSQL()
+    db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
+
+    sql = 'SELECT count(*) FROM %s' % (table)
+    print sql
+    db.execute(sql)
+    num_1 = 0    
+    for row in db.cur.fetchall():        
+        for r in row:
+            num_1 = r
+            break
+        break
+    
+    print 'INSERT INTO %s' % (table)
+    for task in task_list:        
+        sql = 'INSERT INTO %s(hash, online_time, is_valid, filesize, temperature0, \
+        temperature1, temperature2, temperature3, temperature4, temperature5, temperature6, temperature7) \
+        VALUES("%s", "%s", 2, %s, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) \
+        ON DUPLICATE KEY UPDATE is_valid=2' % (table, task['hash'], task['online_time'], task['filesize'])              
+        #print sql
+        db.execute(sql)
+    
+    sql = 'SELECT count(*) FROM %s' % (table)
+    print sql
+    db.execute(sql)
+    num_2 = 0    
+    for row in db.cur.fetchall():        
+        for r in row:
+            num_2 = r
+            break
+        break
+    
+    num_insert = num_2 - num_1
+    
+    sql = 'DELETE FROM %s WHERE is_valid!=2' % (table)
+    print sql
+    db.execute(sql)
+    
+    sql = 'SELECT count(*) FROM %s' % (table)
+    print sql
+    db.execute(sql)
+    num_3 = 0    
+    for row in db.cur.fetchall():        
+        for r in row:
+            num_3 = r
+            break
+        break
+    
+    num_delete = num_2 - num_3
+    
+    sql = 'UPDATE %s SET is_valid=1' % (table)
+    print sql
+    db.execute(sql)
+        
+    db.close()  
+     
+    return (num_1, num_insert, 0, num_delete)
+
 
 def get_tasks_macross(platform, begin_date, end_date):
     task_list = None
@@ -375,7 +435,6 @@ def get_tasks_macross(platform, begin_date, end_date):
         task_list = get_tasks_macross_pc(begin_date, end_date)
         
     return task_list
-
 
 
 def task_list_find(task_list, hashid):
@@ -487,8 +546,56 @@ def upload_sub_hits_num(platform, previous_day):
     print 'sub_hits_num line_num=%d, num_insert2=%d, num_update2=%d' % (line_num, num_insert2, num_update2)        
     return (True, num_insert2, num_update2)
     
+
+def upload_add_hits_num_sql(platform, hits_date):
+    num_insert = 0
+    num_update = 0
     
-def upload_add_hits_num(platform, hits_date):
+    upload_file = ""
+    if(platform == 'mobile'):        
+        upload_file = DB.db.HITS_FILE.template_mobile % (hits_date)
+    elif(platform == 'pc'):
+        upload_file = DB.db.HITS_FILE.template_pc % (hits_date)
+    print 'add_hits_num %s' % (upload_file)
+       
+    hits_time = '%s-%s-%s 12:00:00' % (hits_date[0:4], hits_date[4:6], hits_date[6:8])  
+    
+    try:
+        hits_file = open(upload_file, "r")
+    except:            
+        return (False, num_insert, num_update)
+    
+    table = '%s_task_hits' % (platform)
+    
+    db = DB.db.DB_MYSQL()
+    db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
+    
+    line_num = 0 
+    while(True): 
+        line = hits_file.readline()
+        if(line == ''):
+            break           
+        items = line.split(' ')
+        if(len(items) >= 2):
+            hits_num = items[0].strip()
+            hash_id = items[1].strip()
+            v_hits_num = string.atoi(hits_num)
+            #sql = 'INSERT ignore INTO %s(hash, time, hits_num) VALUES("%s", "%s", %d)' % (table, hash_id, hits_time, v_hits_num)  
+            sql = 'INSERT INTO %s(hash, time, hits_num) VALUES("%s", "%s", %d) ON DUPLICATE KEY UPDATE hits_num=hits_num+%d' % (table, hash_id, hits_time, v_hits_num, v_hits_num) 
+            print sql
+            db.execute(sql)
+            num_insert += 1
+        line_num += 1
+        if(line_num % 100 == 0):
+            print 'file=%s, line_num=%d' % (upload_file, line_num)
+        
+    hits_file.close() 
+    
+    print 'add_hits_num line_num=%d, num_insert=%d, num_update=%d' % (line_num, num_insert, num_update)            
+    return (True, num_insert, num_update)
+
+    
+def upload_add_hits_num_django(platform, hits_date):
     num_insert = 0
     num_update = 0
     
@@ -536,9 +643,7 @@ def upload_add_hits_num(platform, hits_date):
     return (True, num_insert, num_update)
 
 
-def do_calc_temperature(platform, record):
-    num_calc = 0
-    
+def do_calc_temperature_normal(platform, record):
     now_time = time.localtime(time.time())        
     begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     print 'begin@ %s' % (begin_time)
@@ -549,15 +654,108 @@ def do_calc_temperature(platform, record):
     str_time = time.strftime("%Y-%m-%d 00:00:00", now_time)   
     
     day_delta = 1
-    previous_date = datetime.date(string.atoi(str_time[0:4]), string.atoi(str_time[5:7]), string.atoi(str_time[8:10])) - datetime.timedelta(days=day_delta)
-    previous_day = '%04d-%02d-%02d' % (previous_date.year, previous_date.month, previous_date.day)
+    previous_date = datetime.datetime(string.atoi(str_time[0:4]), string.atoi(str_time[5:7]), string.atoi(str_time[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    previous_day = '%04d-%02d-%02d 00:00:00' % (previous_date.year, previous_date.month, previous_date.day)
+    week_day = previous_date.weekday()    
+    previous_week_day = week_day - 1
+    if(previous_week_day < 0):
+        previous_week_day = 6
+    print 'weekday: %d, previous_weekday: %d' % (week_day, previous_week_day)
     
     hash_list_local = get_tasks_local(platform)  
     tasks_hits_list = get_tasks_hits(platform)
 
-    ALPHA = 0.9
-    MEAN_HITS_NUM = 10000
+    v_config = config.views.get_config(platform)
+    ALPHA = v_config.alpha
+    MEAN_HITS_NUM = v_config.mean_hits
     
+    num_calc = 0 
+    print 'hash_list_local count %d' % (hash_list_local.count())
+    for task in hash_list_local:
+        hits_list = tasks_hits_list.filter(hash=task.hash, time__gte=previous_date)
+        task_temperature = 0.0
+        if(hits_list.count() > 0):
+            for hits in hits_list:
+                days_num = day_diff(previous_day, str(hits.time))
+                if(days_num < 0):
+                    days_num = 0
+                task_temperature = task_temperature + hits.hits_num*(ALPHA**days_num)
+        else:
+            online_time = task.online_time.strftime("%Y-%m-%d %H:%M:%S")
+            days_num = day_diff(previous_day, online_time)
+            if(days_num < 0):
+                days_num = 0
+            if(days_num == 0):
+                task_temperature = MEAN_HITS_NUM
+            else:
+                task_temperature = 0.0
+        if(week_day == 0):
+            task.temperature1 = task.temperature7*ALPHA + task_temperature     
+            task.temperature0 = task.temperature1
+        elif(week_day == 1):
+            task.temperature2 = task.temperature1*ALPHA + task_temperature  
+            task.temperature0 = task.temperature2
+        elif(week_day == 2):
+            task.temperature3 = task.temperature2*ALPHA + task_temperature
+            task.temperature0 = task.temperature3
+        elif(week_day == 3):
+            task.temperature4 = task.temperature3*ALPHA + task_temperature
+            task.temperature0 = task.temperature4
+        elif(week_day == 4):
+            task.temperature5 = task.temperature4*ALPHA + task_temperature
+            task.temperature0 = task.temperature5
+        elif(week_day == 5):
+            task.temperature6 = task.temperature5*ALPHA + task_temperature
+            task.temperature0 = task.temperature6 
+        elif(week_day == 6):
+            task.temperature7 = task.temperature6*ALPHA + task_temperature
+            task.temperature0 = task.temperature7  
+        print '%s, %e' % (task.hash, task.temperature0)
+        task.save()
+        num_calc += 1
+    
+    #hash_list_local.update(temperature0=temperature1)
+        
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'end@ %s' % (end_time)
+    output = 'now: %s, ' % (end_time)
+    output += 'num_calc: %d, ' % (num_calc)
+    print output
+    record.end_time = end_time
+    record.status = 2                
+    record.memo = output
+    record.save()
+    return True 
+
+
+def do_calc_temperature_renew(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@ %s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    str_time = time.strftime("%Y-%m-%d 00:00:00", now_time)   
+    
+    day_delta = 1
+    previous_date = datetime.datetime(string.atoi(str_time[0:4]), string.atoi(str_time[5:7]), string.atoi(str_time[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    previous_day = '%04d-%02d-%02d 00:00:00' % (previous_date.year, previous_date.month, previous_date.day)
+    week_day = previous_date.weekday()    
+    previous_week_day = week_day - 1
+    if(previous_week_day < 0):
+        previous_week_day = 6
+    print 'weekday: %d, previous_weekday: %d' % (week_day, previous_week_day)
+    
+    hash_list_local = get_tasks_local(platform)  
+    tasks_hits_list = get_tasks_hits(platform)
+
+    v_config = config.views.get_config(platform)
+    ALPHA = v_config.alpha
+    MEAN_HITS_NUM = v_config.mean_hits
+    
+    num_calc = 0 
     print 'hash_list_local count %d' % (hash_list_local.count())
     for task in hash_list_local:
         hits_list = tasks_hits_list.filter(hash=task.hash)
@@ -574,7 +772,27 @@ def do_calc_temperature(platform, record):
             if(days_num < 0):
                 days_num = 0
             task_temperature = task_temperature + MEAN_HITS_NUM*(ALPHA**days_num)            
-        task.temperature0 = task_temperature;
+        if(week_day == 0):
+            task.temperature1 = task.temperature7*ALPHA + task_temperature     
+            task.temperature0 = task.temperature1
+        elif(week_day == 1):
+            task.temperature2 = task.temperature1*ALPHA + task_temperature  
+            task.temperature0 = task.temperature2
+        elif(week_day == 2):
+            task.temperature3 = task.temperature2*ALPHA + task_temperature
+            task.temperature0 = task.temperature3
+        elif(week_day == 3):
+            task.temperature4 = task.temperature3*ALPHA + task_temperature
+            task.temperature0 = task.temperature4
+        elif(week_day == 4):
+            task.temperature5 = task.temperature4*ALPHA + task_temperature
+            task.temperature0 = task.temperature5
+        elif(week_day == 5):
+            task.temperature6 = task.temperature5*ALPHA + task_temperature
+            task.temperature0 = task.temperature6 
+        elif(week_day == 6):
+            task.temperature7 = task.temperature6*ALPHA + task_temperature
+            task.temperature0 = task.temperature7  
         print '%s, %e' % (task.hash, task.temperature0)
         task.save()
         num_calc += 1
@@ -584,6 +802,62 @@ def do_calc_temperature(platform, record):
     print 'end@ %s' % (end_time)
     output = 'now: %s, ' % (end_time)
     output += 'num_calc: %d, ' % (num_calc)
+    print output
+    record.end_time = end_time
+    record.status = 2                
+    record.memo = output
+    record.save()
+    return True 
+
+
+def do_calc_temperature(platform, record):
+    result = False
+    memo = record.memo
+    if(memo == ''):
+        result = do_calc_temperature_normal(platform, record)
+    else:
+        result = do_calc_temperature_renew(platform, record)
+    return result
+
+
+def do_calc_hot_mean_hits_num(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@ %s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    str_date = record.name   
+    str_day_begin = '%s-%s-%s 00:00:00' % (str_date[0:4], str_date[4:6], str_date[6:8]) 
+    str_day_end   = '%s-%s-%s 23:59:59' % (str_date[0:4], str_date[4:6], str_date[6:8]) 
+    print str_day_begin
+    print str_day_end        
+    
+    tasks_hits_list = get_tasks_hits(platform)
+    hot_list = tasks_hits_list.filter(time__gte=str_day_begin, time__lte=str_day_end).order_by('-hits_num')
+    total_list_num = hot_list.count()
+    hot_list_num = total_list_num/5
+    
+    total_hits_num = 0
+    hot_list_index = 0
+    for hot_task in hot_list:
+        print 'hot_list_index: %d, hits_num:%d, hash: %s' % (hot_list_index, hot_task.hits_num, hot_task.hash)
+        total_hits_num = total_hits_num + hot_task.hits_num
+        hot_list_index = hot_list_index + 1
+        if(hot_list_index>=hot_list_num):
+            break
+    
+    mean_hits_num = 0
+    if(hot_list_num > 0):
+        mean_hits_num = total_hits_num/hot_list_num
+    
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'end@ %s' % (end_time)
+    output = 'now: %s, ' % (end_time)
+    output += 'hot_list_num: %d[%d], ' % (hot_list_num, total_list_num)
+    output += 'total_hits_num: %d, mean_hits_num: %d' % (total_hits_num, mean_hits_num)
     print output
     record.end_time = end_time
     record.status = 2                
@@ -601,7 +875,7 @@ def do_upload(platform, record):
     record.save()
     
     hits_date = record.name
-    (result, num_insert, num_update) = upload_add_hits_num(platform, hits_date)
+    (result, num_insert, num_update) = upload_add_hits_num_sql(platform, hits_date)
     if(result == False):
         now_time = time.localtime(time.time())        
         end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
@@ -627,8 +901,41 @@ def do_upload(platform, record):
     record.save()
     return True
         
+
+def do_sync_all_sql(platform, record):    
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@%s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    begin_date = ''
+    end_date = ''
         
-def do_sync_all(platform, record):    
+    hash_list_macross = get_tasks_macross(platform, begin_date, end_date)
+    num_macross = hash_list_macross.__len__()
+    print 'num_macross=%d' % (num_macross)
+    
+    (num_local, num_insert, num_update, num_delete) = add_tasks_local(platform, hash_list_macross)    
+    
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    output = 'now: %s, ' % (end_time)
+    output += 'num_macross: %d, ' % (num_macross)
+    output += 'num_local: %d, ' % (num_local)
+    output += 'num_insert: %d, ' % (num_insert)
+    output += 'num_update: %d, ' % (num_update)
+    output += 'num_delete: %d' % (num_delete)
+    print output
+    record.end_time = end_time
+    record.status = 2
+    record.memo = output
+    record.save()
+    return True
+
+        
+def do_sync_all_django(platform, record):    
     now_time = time.localtime(time.time())        
     begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     print 'begin@%s' % (begin_time)
@@ -759,83 +1066,17 @@ def do_sync_partial(platform, record):
     record.save()
     return True    
 
-    
-class Thread_UPLOAD(threading.Thread):
-    #platform = ''
-    #record_list = []
-    #num_insert = 0
-    #num_update = 0
-    #num_insert2 = 0
-    #num_update2 = 0
-    
-    def __init__(self, v_platform, v_record_list):
-        super(Thread_UPLOAD, self).__init__()        
-        self.platform = v_platform
-        self.record_list = v_record_list   
-        self.num_insert = 0
-        self.num_update = 0
-        self.num_insert2 = 0
-        self.num_update2 = 0     
-        
-      
-    def run_record(self, record):
-        result = do_upload(self.platform, record)
-        return result
-        
-        
-    def run(self):
-        for record in self.record_list:            
-            self.run_record(record)
-
             
 def do_uploads(platform, record_list):
     for record in record_list:            
         do_upload(platform, record)
-                
-
-class Thread_COLD(threading.Thread):
-    #platform = ''
-    #record = None
-    #num_calc = 0
-    
-    def __init__(self, the_platform, the_record):
-        super(Thread_COLD, self).__init__()        
-        self.platform = the_platform
-        self.record = the_record   
-        self.num_calc = 0     
-            
-    def run(self):
-        result = do_cold2(self.platform, self.record)
-        return result
-
-
-class Thread_SYNC(threading.Thread):
-    #platform = ''
-    #record = None
-    #sync_all = 0
-    
-    def __init__(self, the_platform, the_record):
-        super(Thread_SYNC, self).__init__()        
-        self.platform = the_platform
-        self.record = the_record    
-        if(self.record.memo == '~'):
-            self.sync_all = 1
-        else:
-            self.sync_all = 0
-        
-    def run(self):
-        result = False
-        if(self.sync_all == 1):
-            result = do_sync_all(self.platform, self.record)
-        else:
-            result = do_sync_partial(self.platform, self.record)
-        return result
            
+
     
 def do_sync(platform, record): 
     result = False       
     if(record.memo == '~'):
-        result = do_sync_all(platform, record)
+        result = do_sync_all_sql(platform, record)
     else:
         result = do_sync_partial(platform, record)
     return result
@@ -885,9 +1126,6 @@ def sync_hash_db(request, platform):
         return HttpResponse(json.dumps(return_datas))
     
     if(start_now == True):
-        # start thread.
-        #t = Thread_SYNC(platform, record_list[0])            
-        #t.start()
         # start process
         p = Process(target=do_sync, args=(platform, record_list[0]))
         p.start()
@@ -1007,13 +1245,28 @@ def add_record_calc_temperature(platform, record_list, operation1):
     else:
         return False
     
+def add_record_calc_hot_mean_hits_num(platform, record_list, operation1):
+    records = operation.views.get_operation_undone_by_type(platform, operation1['type'])
+    if(len(records) == 0):
+        record = operation.views.create_operation_record_by_dict(platform, operation1)
+        if(record != None):
+            record_list.append(record)
+        else:
+            return False
+    else:
+        return False
+    
     
 def calc_temperature(request, platform):
     print 'calc_temperature'
     print request.REQUEST
     #{u'start_now': u'on', u'begin_date': u'20130922', u'end_date': u'20130923'}
     #{u'begin_date': u'', u'end_date': u''}
+    calc_renew = False
     start_now = False
+    if 'calc_renew' in request.REQUEST:
+        if(request.REQUEST['calc_renew'] == 'on'):
+            calc_renew = True
     if 'start_now' in request.REQUEST:
         if(request.REQUEST['start_now'] == 'on'):
             start_now = True
@@ -1022,12 +1275,16 @@ def calc_temperature(request, platform):
     today = time.strftime("%Y-%m-%d", now_time)
     dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     
+    memo = ''
+    if(calc_renew == True):
+        memo = 'renew'
+        
     operation = {}
     operation['type'] = 'calc_temperature'
     operation['name'] = today
     operation['user'] = request.user.username
-    operation['dispatch_time'] = dispatch_time
-    operation['memo'] = ''
+    operation['dispatch_time'] = dispatch_time    
+    operation['memo'] = memo
     
     return_datas = {}
     
@@ -1054,6 +1311,101 @@ def calc_temperature(request, platform):
     response['Content-Length'] = len(str_datas)
     return response
 
+
+def get_parameters(request, platform):
+    print 'get_parameters'
+    print request.REQUEST
+    
+    v_config = config.views.get_config(platform)
+    
+    return_datas = {}
+    return_datas['success'] = True
+    return_datas['alpha'] = '%f' % (v_config.alpha)
+    return_datas['mean_hits'] = '%d' % (v_config.mean_hits)
+    
+    str_datas = json.dumps(return_datas)
+    response = HttpResponse(str_datas, mimetype='application/json;charset=UTF-8')
+    response['Content-Length'] = len(str_datas)
+    return response
+
+
+def set_parameters(request, platform):
+    print 'set_parameters'
+    print request.REQUEST
+    
+    v_config = config.views.get_config(platform)
+    v_config.alpha = string.atof(request.REQUEST['alpha'])
+    v_config.mean_hits = string.atoi(request.REQUEST['mean_hits'])
+    v_config.save()
+    
+    return_datas = {}
+    return_datas['success'] = True
+    return_datas['data'] = 'set_parameters success'
+    
+    str_datas = json.dumps(return_datas)
+    response = HttpResponse(str_datas, mimetype='application/json;charset=UTF-8')
+    response['Content-Length'] = len(str_datas)
+    return response
+    
+
+def calc_hot_mean_hits_num(request, platform):
+    print 'calc_hot_mean_hits_num'  
+    print request.REQUEST
+    #{u'start_now': u'on', u'date': u'20130922'}
+    start_now = False
+    if 'start_now' in request.REQUEST:
+        if(request.REQUEST['start_now'] == 'on'):
+            start_now = True
+    
+    begin_date = request.REQUEST['date']
+    print begin_date    
+        
+    now_time = time.localtime(time.time())
+    #today = time.strftime("%Y-%m-%d", now_time)
+    dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    
+    begin_day = None
+    return_datas = {}
+    if(len(begin_date) >= 8):
+        begin_day = datetime.date(string.atoi(begin_date[0:4]), string.atoi(begin_date[4:6]), string.atoi(begin_date[6:8])) 
+    else:
+        return_datas['success'] = False
+        return_datas['data'] = 'date %s error' % (begin_date)  
+        return HttpResponse(json.dumps(return_datas))
+        
+    record_list = []
+    
+    operation = {}
+    operation['type'] = 'calc_hot_mean_hits_num'
+    operation['name'] = ''
+    operation['user'] = request.user.username
+    operation['dispatch_time'] = dispatch_time
+    operation['memo'] = ''
+        
+    operation['name'] = '%04d%02d%02d' % (begin_day.year, begin_day.month, begin_day.day)
+    result = add_record_calc_hot_mean_hits_num(platform, record_list, operation)
+    if(result == False):
+        return_datas['success'] = False
+        return_datas['data'] = 'date %s error' % (operation['name'])  
+        return HttpResponse(json.dumps(return_datas))    
+            
+    if(start_now == True):
+        # start thread.
+        #t = Thread_UPLOAD(platform, record_list)            
+        #t.start()
+        # start process
+        p = Process(target=do_calc_hot_mean_hits_num, args=(platform, record_list[0]))
+        p.start()
+        
+    return_datas['success'] = True
+    return_datas['data'] = 'day_num %d' % (1)  
+    
+    str_datas = json.dumps(return_datas)
+    response = HttpResponse(str_datas, mimetype='application/json;charset=UTF-8')
+    response['Content-Length'] = len(str_datas)
+    return response
+        
+   
 def test_insert(request, platform):
     print 'test_insert'
     #2014-01-07 16:00:00+00:00

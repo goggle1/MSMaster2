@@ -56,13 +56,13 @@ def tree(request):
     
     # 生成目录树节点
     tree_node = {}
-    tree_node['href'] = "javascript:void(index_main('main_page', 'MediaServer管理系统'))"
+    tree_node['href'] = "javascript:void(index_main('main_page', 'MediaServer管理系统II'))"
     tree_node['icon'] = '/static/css/img/tree/earth.gif'
     tree_node['id'] = 1
     tree_node['leaf'] = True
     tree_node['qtip'] = '根节点'
     tree_node['singleClickExpand'] = True
-    tree_node['text'] = 'MediaServer管理系统'
+    tree_node['text'] = 'MediaServer管理系统II'
     module_tree.append(tree_node)
     
     # 移动平台

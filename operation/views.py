@@ -178,11 +178,13 @@ def do_operation(platform, operation):
             return True
         if(operation.type == 'sync_hash_db'):
             if(operation.memo == '~'):
-                result = task.views.do_sync_all(platform, operation)
+                result = task.views.do_sync_all_sql(platform, operation)
             else:
                 result = task.views.do_sync_partial(platform, operation)
         elif(operation.type == 'upload_hits_num'):
             result = task.views.do_upload(platform, operation)
+        elif(operation.type == 'calc_hot_mean_hits_num'):
+            result = task.views.do_calc_hot_mean_hits_num(platform, operation)
         elif(operation.type == 'calc_temperature'):
             result = task.views.do_calc_temperature(platform, operation)
         elif(operation.type == 'sync_ms_db'):
@@ -241,15 +243,16 @@ class Thread_JOBS(threading.Thread):
 
 def operation_type_int(v_type):
     result = 0
-    type_dict = {   'sync_hash_db':1,       \
-                    'upload_hits_num':2,    \
-                    'calc_temperature':3,          \
-                    'sync_ms_db':4,         \
-                    'sync_ms_status':5,     \
-                    'sync_room_db':6,       \
-                    'sync_room_status':7,   \
-                    'delete_cold_tasks':8,  \
-                    'add_hot_tasks':9       \
+    type_dict = {   'sync_hash_db':1,               \
+                    'upload_hits_num':2,            \
+                    'calc_hot_mean_hits_num':3,     \
+                    'calc_temperature':4,           \
+                    'sync_ms_db':5,                 \
+                    'sync_ms_status':6,             \
+                    'sync_room_db':7,               \
+                    'sync_room_status':8,           \
+                    'delete_cold_tasks':9,          \
+                    'add_hot_tasks':10              \
                 }
     if(type_dict.has_key(v_type) == True):
         result = type_dict[v_type]        

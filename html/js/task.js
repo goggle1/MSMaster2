@@ -164,6 +164,14 @@ var taskJS = function(){
 				iconCls: 'upload',
 				handler: self.upload_hits_num
 			},'-',{
+				text: '计算热片平均点击量',
+				iconCls: 'link',
+				handler: self.calc_hot_mean_hits_num
+			},'-',{
+				text: '参数设置',
+				iconCls: 'compare-repair',
+				handler: self.set_parameters
+			},'-',{
 				text: '计算温度',
 				iconCls: 'chart',
 				handler: self.calc_temperature
@@ -541,22 +549,208 @@ var taskJS = function(){
 		});
 	};
 	
-	/*
-	this.calc_cold = function() 
-	{		
+	this.calc_hot_mean_hits_num = function(){
+		//避免win的重复生成
+		if(Ext.get("calc_hot_mean_hits_num_win_" + self.plat)){
+			Ext.getCmp("calc_hot_mean_hits_num_win_" + self.plat).show();
+			return true;
+		}
+		
+		var yesterday = getDiffDate(-1, 2);
+		
+		var calc_hot_mean_hits_num_form = new Ext.FormPanel({
+			id: 'calc_hot_mean_hits_num_form',
+			autoWidth: true,//自动调整宽度
+			url:'',
+			frame:true,
+			monitorValid : true,
+			bodyStyle:'padding:5px 5px 0',
+			labelWidth:150,
+			defaults:{xtype:'textfield',width:200},
+			items: [				
+				{
+					fieldLabel:'date',	
+					name: 'date', 
+					value: yesterday, 
+					allowBlank: false,
+					blankText: '日期不能为空'
+				},					
+				{
+				    xtype:'checkbox',
+				    id: 'start_now',
+				    name: 'start_now',
+				    //align:'left',
+				    fieldLabel:'是否立即执行',
+				    checked: false
+				}	
+			],
+			buttons: [{
+				text: '确定',
+				handler: self.calcHotMeanHitsNumEnd,
+				formBind : true
+			},{
+				text: '取消',
+				handler: function(){Ext.getCmp("calc_hot_mean_hits_num_win_" + self.plat).close();}
+			}]
+		});
+		
+		var win = new Ext.Window({
+			width:400,height:133,minWidth:200,minHeight:100,
+			autoScroll:'auto',
+			title : "计算热片平均点击量",
+			id : "calc_hot_mean_hits_num_win_" + self.plat,
+			//renderTo: "ext_room",
+			collapsible: true,
+			modal:false,	//True 表示为当window显示时对其后面的一切内容进行遮罩，false表示为限制对其它UI元素的语法（默认为 false
+			//所谓布局就是指容器组件中子元素的分布，排列组合方式
+			layout: 'form',//layout布局方式为form
+			maximizable:true,
+			minimizable:false,
+			items: calc_hot_mean_hits_num_form
+		}).show();		
+		
+	};
+	
+	this.calcHotMeanHitsNumEnd = function() {
+		Ext.getCmp("calc_hot_mean_hits_num_form").form.submit({
+			waitMsg : '正在修改......',
+			url : '/calc_hot_mean_hits_num/' + self.plat + '/',
+			method : 'post',
+			timeout : 5000,//5秒超时, 
+			params : '',
+			success : function(form, action) {
+				var result = Ext.util.JSON.decode(action.response.responseText);
+				Ext.getCmp("calc_hot_mean_hits_num_win_" + self.plat).close();
+				Ext.MessageBox.alert('成功', result.data);
+				//self.task_store.reload();			//重新载入数据，即根据当前页面的条件，刷新用户页面
+			},
+			failure : function(form, action) {
+				alert('失败:' + action.response.responseText);
+				if(typeof(action.response) == 'undefined'){
+					Ext.MessageBox.alert('警告','添加失败，请重新添加！');
+				} else {
+					var result = Ext.util.JSON.decode(action.response.responseText);
+					if(action.failureType == Ext.form.Action.SERVER_INVALID){
+						Ext.MessageBox.alert('警告', result.data);
+					}else{
+						Ext.MessageBox.alert('警告','表单填写异常，请重新填写！');
+					}
+				}
+			}
+		});
+	};
+	
+	this.set_parameters = function(){
+		//避免win的重复生成
+		if(Ext.get("set_parameters_win_" + self.plat)){
+			Ext.getCmp("set_parameters_win_" + self.plat).show();
+			return true;
+		}
+		
+		// 获取老化系数
+		param_alpha = '0.9';
+		// 获取平均点击量
+		param_mean_hits = '10000';
+		
 		Ext.Ajax.request({
-			timeout: 60, // 60 seconds
-			url: '/calc_cold/' + self.plat + '/',			
+			url: '/get_parameters/' + self.plat + '/',				
 			params: '',
 			success: function(response) {
-				Ext.MessageBox.alert('成功', response.responseText);	
+				//Ext.MessageBox.alert('成功', Ext.encode(response));	
+				//console.log(response.responseText);	
+				var json_obj=eval('('+response.responseText+')');
+				param_alpha 	= json_obj.alpha;
+				param_mean_hits = json_obj.mean_hits;
+				//alert(param_alpha);
+				var set_parameters_form = new Ext.FormPanel({
+					id: 'set_parameters_form_' + self.plat,
+					autoWidth: true,//自动调整宽度
+					url:'',
+					frame:true,
+					monitorValid : true,
+					bodyStyle:'padding:5px 5px 0',
+					labelWidth:150,
+					defaults:{xtype:'textfield',width:200},
+					items: [				
+						{
+							fieldLabel:'老化系数',	
+							name: 'alpha', 
+							value: param_alpha, 
+							allowBlank: false,
+							blankText: '老化系数不能为空'
+						},
+						{
+							fieldLabel:'平均点击量',	
+							name: 'mean_hits', 
+							value: param_mean_hits, 
+							allowBlank: true,
+							blankText: '平均点击量不能为空'
+						}
+					],
+					buttons: [{
+						text: '确定',
+						handler: self.setParametersEnd,
+						formBind : true
+					},{
+						text: '取消',
+						handler: function(){Ext.getCmp("set_parameters_win_" + self.plat).close();}
+					}]
+				});
+		
+				var win = new Ext.Window({
+					width:400,height:135,minWidth:200,minHeight:100,
+					autoScroll:'auto',
+					title : "参数设置",
+					id : "set_parameters_win_" + self.plat,
+					//renderTo: "ext_room",
+					collapsible: true,
+					modal:false,	//True 表示为当window显示时对其后面的一切内容进行遮罩，false表示为限制对其它UI元素的语法（默认为 false
+					//所谓布局就是指容器组件中子元素的分布，排列组合方式
+					layout: 'form',//layout布局方式为form
+					maximizable:true,
+					minimizable:false,
+					items: set_parameters_form
+				}).show();
 			},
 			failure: function(response){
 				Ext.MessageBox.alert('失败', Ext.encode(response));
-			}			
+			}
+			//timeout: (this.timeout*1000);
 		});
-	}
-	*/
+		
+				
+		
+	};
+	
+	
+	this.setParametersEnd = function() {
+		Ext.getCmp("set_parameters_form_" + self.plat).form.submit({
+			waitMsg : '正在修改......',
+			url : '/set_parameters/' + self.plat + '/',
+			method : 'post',
+			timeout : 5000,//5秒超时, 
+			params : '',
+			success : function(form, action) {
+				var result = Ext.util.JSON.decode(action.response.responseText);
+				Ext.getCmp("set_parameters_win_" + self.plat).close();
+				Ext.MessageBox.alert('成功', result.data);
+				//self.task_store.reload();			//重新载入数据，即根据当前页面的条件，刷新用户页面
+			},
+			failure : function(form, action) {
+				alert('失败:' + action.response.responseText);
+				if(typeof(action.response) == 'undefined'){
+					Ext.MessageBox.alert('警告','添加失败，请重新添加！');
+				} else {
+					var result = Ext.util.JSON.decode(action.response.responseText);
+					if(action.failureType == Ext.form.Action.SERVER_INVALID){
+						Ext.MessageBox.alert('警告', result.data);
+					}else{
+						Ext.MessageBox.alert('警告','表单填写异常，请重新填写！');
+					}
+				}
+			}
+		});
+	};
 	
 	this.calc_temperature = function(){
 		//避免win的重复生成
@@ -589,7 +783,15 @@ var taskJS = function(){
 					value: '', 
 					allowBlank: true,
 					blankText: '截止日期可以为空'
-				},	*/				
+				},	*/	
+				{
+				    xtype:'checkbox',
+				    id: 'calc_renew',
+				    name: 'calc_renew',
+				    //align:'left',
+				    fieldLabel:'是否全新计算',
+				    checked: false
+				},			
 				{
 				    xtype:'checkbox',
 				    id: 'start_now',
@@ -610,7 +812,7 @@ var taskJS = function(){
 		});
 		
 		var win = new Ext.Window({
-			width:400,height:110,minWidth:200,minHeight:100,
+			width:400,height:133,minWidth:200,minHeight:133,
 			autoScroll:'auto',
 			title : "计算温度",
 			id : "calc_temperature_win_" + self.plat,
