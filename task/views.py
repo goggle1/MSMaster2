@@ -643,6 +643,106 @@ def upload_add_hits_num_django(platform, hits_date):
     return (True, num_insert, num_update)
 
 
+def do_calc_temperature_normal_sql(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@ %s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    str_time = time.strftime("%Y-%m-%d 00:00:00", now_time)   
+    
+    day_delta = 1
+    previous_date = datetime.datetime(string.atoi(str_time[0:4]), string.atoi(str_time[5:7]), string.atoi(str_time[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    previous_day = '%04d-%02d-%02d 00:00:00' % (previous_date.year, previous_date.month, previous_date.day)
+    week_day = previous_date.weekday()    
+    previous_week_day = week_day - 1
+    if(previous_week_day < 0):
+        previous_week_day = 6
+    print 'weekday: %d, previous_weekday: %d' % (week_day, previous_week_day)
+    
+    v_config = config.views.get_config(platform)
+    ALPHA = v_config.alpha
+    MEAN_HITS_NUM = v_config.mean_hits
+    
+    table_temperature = '%s_task_temperature' % (platform)
+    table_hits = '%s_task_hits' % (platform)
+    
+    db = DB.db.DB_MYSQL()
+    db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
+    
+    sql1 = 'SELECT hash, online_time, temperature0 FROM %s' % (table_temperature)
+    print sql1
+    db.execute(sql1)
+    
+    num_calc = 0 
+    query_set_1 = db.cur.fetchall()
+    for row1 in query_set_1:
+        task1 = {} 
+        r1_index = 0
+        for r1 in row1:
+            if(r1_index == 0):
+                task1['hash'] = r1
+            elif(r1_index == 1):
+                task1['online_time'] = r1
+            elif(r1_index == 2):
+                task1['temperature0'] = r1
+            r1_index += 1
+        print '%s, %s, %e' % (task1['hash'], task1['online_time'], task1['temperature0'])
+        
+        task_temperature = 0.0
+        
+        sql2 = 'SELECT hash, time, hits_num FROM %s WHERE hash="%s" and time>="%s"' % (table_hits, task1['hash'], previous_day)
+        print sql2
+        db.execute(sql2)
+        query_set_2 = db.cur.fetchall()
+        hits_num = 0
+        for row2 in query_set_2:
+            hits_num += 1
+            hits = {}            
+            r2_index = 0       
+            for r2 in row2:
+                if(r2_index == 0):
+                    hits['hash'] = r2
+                elif(r2_index == 1):
+                    hits['time'] = r2
+                elif(r2_index == 2):
+                    hits['hits_num'] = r2
+                r2_index += 1
+            print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
+            days_num = day_diff(previous_day, hits['time'].strftime("%Y-%m-%d %H:%M:%S"))
+            if(days_num < 0):
+                days_num = 0
+            task_temperature = task_temperature + hits['hits_num']*(ALPHA**days_num)
+            
+        if(hits_num == 0):            
+            days_num = day_diff(previous_day, task1['online_time'].strftime("%Y-%m-%d %H:%M:%S"))
+            if(days_num < 0):                
+                days_num = 0
+            if(days_num == 0):
+                task_temperature = task_temperature + MEAN_HITS_NUM*(ALPHA**days_num)
+        
+        task_temperature = task1['temperature0'] * ALPHA + task_temperature;
+        sql3 = 'UPDATE %s SET temperature0=%e, temperature%d=%e WHERE hash="%s"' % (table_temperature, task_temperature, week_day+1, task_temperature, task1['hash'])
+        print sql3
+        db.execute(sql3)        
+        print '%s, %e' % (task1['hash'], task_temperature)        
+        num_calc += 1
+        
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'end@ %s' % (end_time)
+    output = 'now: %s, ' % (end_time)
+    output += 'num_calc: %d, ' % (num_calc)
+    print output
+    record.end_time = end_time
+    record.status = 2                
+    record.memo = output
+    record.save()
+    return True 
+
+
 
 def do_calc_temperature_normal_django(platform, record):
     now_time = time.localtime(time.time())        
@@ -874,10 +974,11 @@ def do_calc_temperature(platform, record):
     result = False
     memo = record.memo
     if(memo == ''):
-        result = do_calc_temperature_normal_django(platform, record)
+        #result = do_calc_temperature_normal_django(platform, record)
+        result = do_calc_temperature_normal_sql(platform, record)
     elif(memo == 'renew'):
-        #result = do_calc_temperature_renew_sql(platform, record)
-        result = do_calc_temperature_renew_django(platform, record)
+        result = do_calc_temperature_renew_sql(platform, record)
+        #result = do_calc_temperature_renew_django(platform, record)
     else:
         result = False
     return result
