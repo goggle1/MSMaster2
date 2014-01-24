@@ -1275,12 +1275,19 @@ def sync_hash_db(request, platform):
     today = time.strftime("%Y-%m-%d", now_time)
     dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
        
+    begin_date = ''
+    end_date = ''
+    if 'begin_date' in request.REQUEST:
+        begin_date = request.REQUEST['begin_date']
+    if 'end_date' in request.REQUEST:
+        end_date = request.REQUEST['end_date']
+    
     operation = {}
     operation['type'] = 'sync_hash_db'
     operation['name'] = today
     operation['user'] = request.user.username
     operation['dispatch_time'] = dispatch_time
-    operation['memo'] = '%s~%s' % (request.REQUEST['begin_date'], request.REQUEST['end_date'])
+    operation['memo'] = '%s~%s' % (begin_date, end_date)
     
     return_datas = {}
     
