@@ -899,7 +899,8 @@ def do_calc_temperature_renew_sql(platform, record):
     now_time = time.localtime(time.time())        
     end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     print 'end@ %s' % (end_time)
-    output = 'now: %s, ' % (end_time)
+    output = 'mode: renew, '
+    output += 'now: %s, ' % (end_time)
     output += 'num_calc: %d, ' % (num_calc)
     print output
     record.end_time = end_time
