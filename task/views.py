@@ -15,6 +15,7 @@ import operation.views
 import config.views
 import threading
 import datetime
+import math
 from multiprocessing import Process
 
 def day_diff(date1, date2):
@@ -699,9 +700,9 @@ def do_calc_temperature_normal_sql(platform, record):
         print sql2
         db.execute(sql2)
         query_set_2 = db.cur.fetchall()
-        hits_num = 0
+        hits_days_num = 0
         for row2 in query_set_2:
-            hits_num += 1
+            hits_days_num += 1
             hits = {}            
             r2_index = 0       
             for r2 in row2:
@@ -713,17 +714,21 @@ def do_calc_temperature_normal_sql(platform, record):
                     hits['hits_num'] = r2
                 r2_index += 1
             print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
-            days_num = day_diff(previous_day, hits['time'].strftime("%Y-%m-%d %H:%M:%S"))
-            if(days_num < 0):
-                days_num = 0
-            task_temperature = task_temperature + hits['hits_num']*(ALPHA**days_num)
+            diff_days_num = day_diff(previous_day, hits['time'].strftime("%Y-%m-%d %H:%M:%S"))
+            if(diff_days_num < 0):
+                diff_days_num = 0
+            hits_num = hits['hits_num']
+            online_days_num = day_diff(task1['online_time'].strftime("%Y-%m-%d %H:%M:%S"), hits['time'].strftime("%Y-%m-%d %H:%M:%S"))
+            if(online_days_num == 0):
+                hits_num += MEAN_HITS_NUM
+            task_temperature = task_temperature + hits_num*(ALPHA**diff_days_num)
             
-        if(hits_num == 0):            
-            days_num = day_diff(previous_day, task1['online_time'].strftime("%Y-%m-%d %H:%M:%S"))
-            if(days_num < 0):                
-                days_num = 0
-            if(days_num == 0):
-                task_temperature = task_temperature + MEAN_HITS_NUM*(ALPHA**days_num)
+        if(hits_days_num == 0):            
+            diff_days_num = day_diff(previous_day, task1['online_time'].strftime("%Y-%m-%d %H:%M:%S"))
+            if(diff_days_num < 0):                
+                diff_days_num = 0
+            if(diff_days_num == 0):
+                task_temperature = task_temperature + MEAN_HITS_NUM*(ALPHA**diff_days_num)
         
         task_temperature = task1['temperature0'] * ALPHA + task_temperature;
         sql3 = 'UPDATE %s SET temperature0=%e, temperature%d=%e WHERE hash="%s"' % (table_temperature, task_temperature, week_day+1, task_temperature, task1['hash'])
@@ -865,9 +870,10 @@ def do_calc_temperature_renew_sql(platform, record):
         print sql2
         db.execute(sql2)
         query_set_2 = db.cur.fetchall()
-        hits_num = 0
+        online_day_have_hits = False
+        hits_days_num = 0
         for row2 in query_set_2:
-            hits_num += 1
+            hits_days_num += 1
             hits = {}            
             r2_index = 0       
             for r2 in row2:
@@ -879,16 +885,22 @@ def do_calc_temperature_renew_sql(platform, record):
                     hits['hits_num'] = r2
                 r2_index += 1
             print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
-            days_num = day_diff(previous_day, hits['time'].strftime("%Y-%m-%d %H:%M:%S"))
-            if(days_num < 0):
-                days_num = 0
-            task_temperature = task_temperature + hits['hits_num']*(ALPHA**days_num)
+            diff_days_num = day_diff(previous_day, hits['time'].strftime("%Y-%m-%d %H:%M:%S"))
+            if(diff_days_num < 0):
+                diff_days_num = 0
+            online_days_num = day_diff(task1['online_time'].strftime("%Y-%m-%d %H:%M:%S"), hits['time'].strftime("%Y-%m-%d %H:%M:%S"))
+            hits_num = hits['hits_num']
+            if(online_days_num == 0):
+                online_day_have_hits = True
+                hits_num += MEAN_HITS_NUM
+            task_temperature = task_temperature + hits_num*(ALPHA**diff_days_num)
             
-        if(hits_num == 0):            
-            days_num = day_diff(previous_day, task1['online_time'].strftime("%Y-%m-%d %H:%M:%S"))
-            if(days_num < 0):
-                days_num = 0
-            task_temperature = task_temperature + MEAN_HITS_NUM*(ALPHA**days_num)
+        #if(hits_days_num == 0):  
+        if(online_day_have_hits == False):          
+            diff_days_num = day_diff(previous_day, task1['online_time'].strftime("%Y-%m-%d %H:%M:%S"))
+            if(diff_days_num < 0):
+                diff_days_num = 0
+            task_temperature = task_temperature + MEAN_HITS_NUM*(ALPHA**diff_days_num)
         
         sql3 = 'UPDATE %s SET temperature0=%e, temperature%d=%e WHERE hash="%s"' % (table_temperature, task_temperature, week_day+1, task_temperature, task1['hash'])
         print sql3
@@ -1031,6 +1043,200 @@ def do_calc_hot_mean_hits_num(platform, record):
     record.memo = output
     record.save()
     return True 
+
+
+def do_evaluate_temperature(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@ %s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    str_date = record.memo    
+    day_delta = 1
+    previous_date = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    
+    DAY_1 = '%04d-%02d-%02d' % (previous_date.year, previous_date.month, previous_date.day)
+    DAY_2 = '%s-%s-%s' % (str_date[0:4], str_date[4:6], str_date[6:8])
+    print DAY_1
+    print DAY_2
+    
+    total_hits_num1 = 0.0
+    total_hits_num2 = 0.0
+    total_hits_diff_square = 0.0
+    
+    table_temperature = '%s_task_temperature' % (platform)
+    table_hits = '%s_task_hits' % (platform)
+    
+    db = DB.db.DB_MYSQL()
+    db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
+    
+    sql1 = 'SELECT hash, online_time FROM %s' % (table_temperature)
+    print sql1
+    db.execute(sql1)
+ 
+    tasks_num = 0
+    evaluate_num = 0
+    query_set_1 = db.cur.fetchall()
+    for row1 in query_set_1:
+        task1 = {} 
+        r1_index = 0
+        for r1 in row1:
+            if(r1_index == 0):
+                task1['hash'] = r1
+            elif(r1_index == 1):
+                task1['online_time'] = r1
+            r1_index += 1
+        #print '%s, %s' % (task1['hash'], task1['online_time'])
+                
+        tasks_num = tasks_num + 1
+        sql2 = 'SELECT hash, time, hits_num FROM %s WHERE hash="%s" and time>="%s 00:00:00" and time<="%s 23:59:59" ' % (table_hits, task1['hash'], DAY_1, DAY_1)
+        #print sql2
+        db.execute(sql2)
+        query_set_2 = db.cur.fetchall()
+        hash_total_hits_num1 = 0        
+        hash_hits_days_num1 = 0
+        for row2 in query_set_2:
+            hash_hits_days_num1 += 1
+            hits = {}            
+            r2_index = 0       
+            for r2 in row2:
+                if(r2_index == 0):
+                    hits['hash'] = r2
+                elif(r2_index == 1):
+                    hits['time'] = r2
+                elif(r2_index == 2):
+                    hits['hits_num'] = r2
+                r2_index += 1
+            #print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
+            hash_total_hits_num1 = hash_total_hits_num1 + hits['hits_num']
+        
+        mean_hits_num1 = 0
+        if(hash_hits_days_num1>0):
+            mean_hits_num1 = hash_total_hits_num1/hash_hits_days_num1
+        else:
+            continue
+        evaluate_num = evaluate_num + 1
+        
+        sql2 = 'SELECT hash, time, hits_num FROM %s WHERE hash="%s" and time>="%s 00:00:00" and time<="%s 23:59:59" ' % (table_hits, task1['hash'], DAY_2, DAY_2)
+        #print sql2
+        db.execute(sql2)
+        query_set_2 = db.cur.fetchall()
+        hash_total_hits_num2 = 0        
+        hash_hits_days_num2 = 0
+        for row2 in query_set_2:
+            hash_hits_days_num2 += 1
+            hits = {}            
+            r2_index = 0       
+            for r2 in row2:
+                if(r2_index == 0):
+                    hits['hash'] = r2
+                elif(r2_index == 1):
+                    hits['time'] = r2
+                elif(r2_index == 2):
+                    hits['hits_num'] = r2
+                r2_index += 1
+            #print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
+            hash_total_hits_num2 = hash_total_hits_num2 + hits['hits_num']
+        
+        mean_hits_num2 = 0
+        if(hash_hits_days_num2>0):
+            mean_hits_num2 = hash_total_hits_num2/hash_hits_days_num2
+        
+        total_hits_num1 = total_hits_num1 + mean_hits_num1
+        total_hits_num2 = total_hits_num2 + mean_hits_num2
+        hits_num_diff = mean_hits_num2 - mean_hits_num1
+        hits_num_square = hits_num_diff * hits_num_diff
+        total_hits_diff_square = total_hits_diff_square + hits_num_square        
+        print '%d: %s, %s, %d-%d=%d, square=%d, total_square=%f, total_hits_num1=%f, total_hits_num1=%f' \
+        % (evaluate_num, task1['hash'], task1['online_time'], mean_hits_num2, mean_hits_num1, hits_num_diff, hits_num_square, total_hits_diff_square, total_hits_num1, total_hits_num2)
+        
+    MSE = math.sqrt(total_hits_diff_square / evaluate_num);
+    mean_hits1 = total_hits_num1/evaluate_num
+    mean_hits2 = total_hits_num2/evaluate_num
+    
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'end@ %s' % (end_time)
+    output = 'now: %s, ' % (end_time)
+    output += 'DAY_1: %s, DAY_2: %s, ' % (DAY_1, DAY_2)
+    output += 'tasks_num: %d, evaluate_num: %d, ' % (tasks_num, evaluate_num)
+    output += 'total_hits1: %f, mean_hits1: %f, ' % (total_hits_num1, mean_hits1)
+    output += 'total_hits2: %f, mean_hits2: %f, ' % (total_hits_num2, mean_hits2)
+    output += 'total_square: %f, MSE(mean square error): %f' % (total_hits_diff_square, MSE)
+    print output
+    record.end_time = end_time
+    record.status = 2                
+    record.memo = output
+    record.save()
+    return True
+
+
+def do_evaluate_temperature_django(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@ %s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    str_date = '20140211'   
+    str_day_begin = '%s-%s-%s 00:00:00' % (str_date[0:4], str_date[4:6], str_date[6:8]) 
+    str_day_end   = '%s-%s-%s 23:59:59' % (str_date[0:4], str_date[4:6], str_date[6:8]) 
+    print str_day_begin
+    print str_day_end        
+    
+    tasks_hits_list = get_tasks_hits(platform)
+    hot_list = tasks_hits_list.filter(time__gte=str_day_begin, time__lte=str_day_end).order_by('-hits_num')
+    total_list_num = hot_list.count()
+    print 'total_list_num: %d' % (total_list_num)
+    
+    str_date2 = '20140212'   
+    str_day_begin2 = '%s-%s-%s 00:00:00' % (str_date2[0:4], str_date2[4:6], str_date2[6:8]) 
+    str_day_end2   = '%s-%s-%s 23:59:59' % (str_date2[0:4], str_date2[4:6], str_date2[6:8]) 
+    print str_day_begin2
+    print str_day_end2
+        
+    hot_list2 = tasks_hits_list.filter(time__gte=str_day_begin2, time__lte=str_day_end2).order_by('-hits_num')
+    total_list_num2 = hot_list2.count()
+    print 'total_list_num2: %d' % (total_list_num2)
+        
+    hot_list_index = 0
+    total_evaluate_num = 0
+    total_evaluate_value = 0.0
+    for hot_task in hot_list:
+        print 'hot_list_index: %d, hits_num:%d, hash: %s' % (hot_list_index, hot_task.hits_num, hot_task.hash)
+        hot_list_index = hot_list_index + 1
+        hot_task2 = hot_list2.filter(hash=hot_task.hash)
+        hits_num2 = 0
+        hot_task2_count = hot_task2.count() 
+        if(hot_task2_count <= 0):
+            hits_num2 = 0
+        elif(hot_task2_count >= 2):
+            print 'hash: %s, count()=%d ?' % (hot_task.hash, hot_task2_count)
+            hits_num2 = hot_task2[0].hits_num
+        else:
+            hits_num2 = hot_task2[0].hits_num         
+        hits_diff = hits_num2 - hot_task.hits_num
+        total_evaluate_num = total_evaluate_num + 1
+        total_evaluate_value = total_evaluate_value + hits_diff * hits_diff
+    
+    MSE = 0.0
+    if(total_evaluate_num > 0):
+        MSE = math.sqrt(total_evaluate_value/total_evaluate_num)
+    
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'end@ %s' % (end_time)
+    output = 'now: %s, ' % (end_time)
+    output += 'total_list_num: %d, total_evaluate_num: %d, MSE(mean square error): %f' % (total_list_num, total_evaluate_num, MSE)
+    print output
+    record.end_time = end_time
+    record.status = 2                
+    record.memo = output
+    record.save()
+    return True
 
             
 def do_upload(platform, record):
@@ -1408,7 +1614,7 @@ def upload_hits_num(request, platform):
     return response
         
         
-def add_record_calc_temperature(platform, record_list, operation1):
+def add_record_one_operation(platform, record_list, operation1):
     records = operation.views.get_operation_undone_by_type(platform, operation1['type'])
     if(len(records) == 0):
         record = operation.views.create_operation_record_by_dict(platform, operation1)
@@ -1418,6 +1624,7 @@ def add_record_calc_temperature(platform, record_list, operation1):
             return False
     else:
         return False
+    
     
 def add_record_calc_hot_mean_hits_num(platform, record_list, operation1):
     records = operation.views.get_operation_undone_by_type(platform, operation1['type'])
@@ -1463,7 +1670,7 @@ def calc_temperature(request, platform):
     return_datas = {}
     
     record_list = []
-    result = add_record_calc_temperature(platform, record_list, operation)
+    result = add_record_one_operation(platform, record_list, operation)
     if(result == False):
         return_datas['success'] = False
         return_datas['data'] = 'calc_temperature operation add error, maybe exist.'
@@ -1479,6 +1686,61 @@ def calc_temperature(request, platform):
         
     return_datas['success'] = True
     return_datas['data'] = 'calc_temperature operation add success'
+    
+    str_datas = json.dumps(return_datas)
+    response = HttpResponse(str_datas, mimetype='application/json;charset=UTF-8')
+    response['Content-Length'] = len(str_datas)
+    return response
+
+
+def evaluate_temperature(request, platform):
+    print 'evaluate_temperature'
+    print request.REQUEST
+    #{u'start_now': u'on', u'begin_date': u'20130922', u'end_date': u'20130923'}
+    #{u'begin_date': u'', u'end_date': u''}
+    
+    start_now = False    
+    if 'start_now' in request.REQUEST:
+        if(request.REQUEST['start_now'] == 'on'):
+            start_now = True
+    
+    begin_date = request.REQUEST['date']
+    print begin_date
+    
+    now_time = time.localtime(time.time())
+    today = time.strftime("%Y-%m-%d", now_time)
+    dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    
+    memo = begin_date
+        
+    operation1 = {}
+    operation1['type'] = 'evaluate_temperature'
+    operation1['name'] = today
+    operation1['user'] = request.user.username
+    operation1['dispatch_time'] = dispatch_time    
+    operation1['memo'] = memo
+    
+    return_datas = {}
+    
+    record_list = []
+    #result = add_record_one_operation(platform, record_list, operation1)
+    #if(result == False):
+    #    return_datas['success'] = False
+    #    return_datas['data'] = 'evaluate_temperature operation add error, maybe exist.'
+    #    return HttpResponse(json.dumps(return_datas))
+    record = operation.views.create_operation_record_by_dict(platform, operation1)
+    record_list.append(record)    
+    
+    if(start_now == True):
+        # start thread.
+        #t = Thread_COLD(platform, record_list[0])            
+        #t.start()
+        # start process
+        p = Process(target=do_evaluate_temperature, args=(platform, record_list[0]))
+        p.start()
+        
+    return_datas['success'] = True
+    return_datas['data'] = 'evaluate_temperature operation add success'
     
     str_datas = json.dumps(return_datas)
     response = HttpResponse(str_datas, mimetype='application/json;charset=UTF-8')

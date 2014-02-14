@@ -187,6 +187,8 @@ def do_operation(platform, operation):
             result = task.views.do_calc_hot_mean_hits_num(platform, operation)
         elif(operation.type == 'calc_temperature'):
             result = task.views.do_calc_temperature(platform, operation)
+        elif(operation.type == 'evaluate_temperature'):
+            result = task.views.do_evaluate_temperature(platform, operation)
         elif(operation.type == 'sync_ms_db'):
             result = MS.views.do_sync_ms_db(platform, operation)
         elif(operation.type == 'sync_ms_status'):
@@ -252,7 +254,8 @@ def operation_type_int(v_type):
                     'sync_room_db':7,               \
                     'sync_room_status':8,           \
                     'delete_cold_tasks':9,          \
-                    'add_hot_tasks':10              \
+                    'add_hot_tasks':10,             \
+                    'evaluate_temperature':11       \
                 }
     if(type_dict.has_key(v_type) == True):
         result = type_dict[v_type]        
