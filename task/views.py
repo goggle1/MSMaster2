@@ -984,7 +984,7 @@ def do_calc_temperature_renew_django(platform, record):
     record.save()
     return True 
 
-
+'''
 def do_calc_temperature(platform, record):
     result = False
     memo = record.memo
@@ -997,6 +997,121 @@ def do_calc_temperature(platform, record):
     else:
         result = False
     return result
+'''
+
+
+def calc_week_temperature(db, table_hits, hash_id, begin_time, week_index):
+    str_date = begin_time    
+    day_delta = 7+week_index*7
+    week_begin = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[5:7]), string.atoi(str_date[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    day_delta = 1+week_index*7
+    week_end  = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[5:7]), string.atoi(str_date[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    
+    DAY_WEEK_BEGIN = '%04d-%02d-%02d' % (week_begin.year, week_begin.month, week_begin.day)
+    DAY_WEEK_END   = '%04d-%02d-%02d' % (week_end.year, week_end.month, week_end.day)    
+    #print DAY_WEEK_BEGIN
+    #print DAY_WEEK_END
+    sql2 = 'SELECT hash, time, hits_num FROM %s WHERE hash="%s" and time>="%s 00:00:00" and time<="%s 23:59:59" ' % (table_hits, hash_id, DAY_WEEK_BEGIN, DAY_WEEK_END)
+    #print sql2
+    db.execute(sql2)
+    query_set_2 = db.cur.fetchall()
+    hash_total_hits_num1 = 0        
+    hash_hits_days_num1 = 0
+    
+    hits_array = [0]*7 
+    for row2 in query_set_2:
+        hash_hits_days_num1 += 1
+        hits = {}            
+        r2_index = 0       
+        for r2 in row2:
+            if(r2_index == 0):
+                hits['hash'] = r2
+            elif(r2_index == 1):
+                hits['time'] = r2
+            elif(r2_index == 2):
+                hits['hits_num'] = r2
+            r2_index += 1
+        #print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
+        str_date=hits['time'].strftime("%Y-%m-%d %H:%M:%S")
+        #print str_date
+        day_index = day_diff(str_date, DAY_WEEK_BEGIN)
+        hits_array[day_index] = hits['hits_num']
+        hash_total_hits_num1 = hash_total_hits_num1 + hits['hits_num']
+    
+    hash_hits_days_num1 = 0
+    for index in range(0, 7):
+        if(hits_array[index] != 0):
+            hash_hits_days_num1 = 7 - index
+            break    
+    
+    mean_hits_num1 = 0.0
+    if(hash_hits_days_num1>0):
+        mean_hits_num1 = hash_total_hits_num1/hash_hits_days_num1
+    
+    return mean_hits_num1
+
+
+#def do_calc_temperature_week(platform, record):
+def do_calc_temperature(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@ %s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    day_delta = 1
+    previous_date = datetime.datetime(string.atoi(begin_time[0:4]), string.atoi(begin_time[5:7]), string.atoi(begin_time[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)    
+    week_day = previous_date.weekday()
+    
+    table_temperature = '%s_task_temperature' % (platform)
+    table_hits = '%s_task_hits' % (platform)
+    
+    db = DB.db.DB_MYSQL()
+    db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
+    
+    sql1 = 'SELECT hash, online_time FROM %s' % (table_temperature)
+    print sql1
+    db.execute(sql1)
+ 
+    tasks_num = 0    
+    query_set_1 = db.cur.fetchall()
+    for row1 in query_set_1:
+        task1 = {} 
+        r1_index = 0
+        for r1 in row1:
+            if(r1_index == 0):
+                task1['hash'] = r1
+            elif(r1_index == 1):
+                task1['online_time'] = r1
+            r1_index += 1
+        #print '%s, %s' % (task1['hash'], task1['online_time'])
+                
+        tasks_num = tasks_num + 1
+        
+        total_temperature = 0.0
+        for week_index in range(0, 8):
+            temperature_week = calc_week_temperature(db, table_hits, task1['hash'], begin_time, week_index)
+            total_temperature = total_temperature + temperature_week/(100000000**week_index)
+            
+        sql3 = 'UPDATE %s SET temperature0=%e, temperature%d=%e WHERE hash="%s"' % (table_temperature, total_temperature, week_day+1, total_temperature, task1['hash'])
+        print sql3
+        db.execute(sql3)        
+        #print '%s, %e' % (task1['hash'], total_temperature)        
+    
+    db.close()
+    
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'end@ %s' % (end_time)
+    output = 'now: %s, ' % (end_time)    
+    output += 'tasks_num: %d' % (tasks_num)
+    print output
+    record.end_time = end_time
+    record.status = 2                
+    record.memo = output
+    record.save()
+    return True
 
 
 def do_calc_hot_mean_hits_num(platform, record):
@@ -1172,6 +1287,7 @@ def do_evaluate_temperature_day(platform, record):
     record.save()
     return True
 
+# evaluate temperature by week
 def do_evaluate_temperature(platform, record):
     now_time = time.localtime(time.time())        
     begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
@@ -1819,12 +1935,8 @@ def calc_temperature(request, platform):
         return_datas['data'] = 'calc_temperature operation add error, maybe exist.'
         return HttpResponse(json.dumps(return_datas))
     
-    if(start_now == True):
-        # start thread.
-        #t = Thread_COLD(platform, record_list[0])            
-        #t.start()
-        # start process
-        p = Process(target=do_calc_temperature, args=(platform, record_list[0]))
+    if(start_now == True):        
+        p = Process(target=do_calc_temperature, args=(platform, record_list[0]))        
         p.start()
         
     return_datas['success'] = True
