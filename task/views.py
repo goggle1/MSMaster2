@@ -1045,7 +1045,7 @@ def do_calc_hot_mean_hits_num(platform, record):
     return True 
 
 
-def do_evaluate_temperature(platform, record):
+def do_evaluate_temperature_day(platform, record):
     now_time = time.localtime(time.time())        
     begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     print 'begin@ %s' % (begin_time)
@@ -1161,6 +1161,149 @@ def do_evaluate_temperature(platform, record):
     print 'end@ %s' % (end_time)
     output = 'now: %s, ' % (end_time)
     output += 'DAY_1: %s, DAY_2: %s, ' % (DAY_1, DAY_2)
+    output += 'tasks_num: %d, evaluate_num: %d, ' % (tasks_num, evaluate_num)
+    output += 'total_hits1: %f, mean_hits1: %f, ' % (total_hits_num1, mean_hits1)
+    output += 'total_hits2: %f, mean_hits2: %f, ' % (total_hits_num2, mean_hits2)
+    output += 'total_square: %f, MSE(mean square error): %f' % (total_hits_diff_square, MSE)
+    print output
+    record.end_time = end_time
+    record.status = 2                
+    record.memo = output
+    record.save()
+    return True
+
+def do_evaluate_temperature(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'begin@ %s' % (begin_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+    
+    str_date = record.memo    
+    day_delta = 7
+    week_begin = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    day_delta = 1
+    week_end  = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    
+    DAY_WEEK_BEGIN = '%04d-%02d-%02d' % (week_begin.year, week_begin.month, week_begin.day)
+    DAY_WEEK_END   = '%04d-%02d-%02d' % (week_end.year, week_end.month, week_end.day)
+    DAY_PREDICT = '%s-%s-%s' % (str_date[0:4], str_date[4:6], str_date[6:8])
+    print DAY_WEEK_BEGIN
+    print DAY_WEEK_END
+    print DAY_PREDICT
+    
+    total_hits_num1 = 0.0
+    total_hits_num2 = 0.0
+    total_hits_diff_square = 0.0
+    
+    table_temperature = '%s_task_temperature' % (platform)
+    table_hits = '%s_task_hits' % (platform)
+    
+    db = DB.db.DB_MYSQL()
+    db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
+    
+    sql1 = 'SELECT hash, online_time FROM %s' % (table_temperature)
+    print sql1
+    db.execute(sql1)
+ 
+    tasks_num = 0
+    evaluate_num = 0
+    query_set_1 = db.cur.fetchall()
+    for row1 in query_set_1:
+        task1 = {} 
+        r1_index = 0
+        for r1 in row1:
+            if(r1_index == 0):
+                task1['hash'] = r1
+            elif(r1_index == 1):
+                task1['online_time'] = r1
+            r1_index += 1
+        #print '%s, %s' % (task1['hash'], task1['online_time'])
+                
+        tasks_num = tasks_num + 1
+        sql2 = 'SELECT hash, time, hits_num FROM %s WHERE hash="%s" and time>="%s 00:00:00" and time<="%s 23:59:59" ' % (table_hits, task1['hash'], DAY_WEEK_BEGIN, DAY_WEEK_END)
+        #print sql2
+        db.execute(sql2)
+        query_set_2 = db.cur.fetchall()
+        hash_total_hits_num1 = 0        
+        hash_hits_days_num1 = 0
+        
+        hits_array = [0]*7 
+        for row2 in query_set_2:
+            hash_hits_days_num1 += 1
+            hits = {}            
+            r2_index = 0       
+            for r2 in row2:
+                if(r2_index == 0):
+                    hits['hash'] = r2
+                elif(r2_index == 1):
+                    hits['time'] = r2
+                elif(r2_index == 2):
+                    hits['hits_num'] = r2
+                r2_index += 1
+            #print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
+            str_date=hits['time'].strftime("%Y-%m-%d %H:%M:%S")
+            #print str_date
+            day_index = day_diff(str_date, DAY_WEEK_BEGIN)
+            hits_array[day_index] = hits['hits_num']
+            hash_total_hits_num1 = hash_total_hits_num1 + hits['hits_num']
+        
+        hash_hits_days_num1 = 0
+        for index in range(0, 7):
+            if(hits_array[index] != 0):
+                hash_hits_days_num1 = 7 - index
+                break    
+        
+        mean_hits_num1 = 0
+        if(hash_hits_days_num1>0):
+            mean_hits_num1 = hash_total_hits_num1/hash_hits_days_num1
+        else:
+            continue
+        evaluate_num = evaluate_num + 1
+        
+        sql2 = 'SELECT hash, time, hits_num FROM %s WHERE hash="%s" and time>="%s 00:00:00" and time<="%s 23:59:59" ' % (table_hits, task1['hash'], DAY_PREDICT, DAY_PREDICT)
+        #print sql2
+        db.execute(sql2)
+        query_set_2 = db.cur.fetchall()
+        hash_total_hits_num2 = 0        
+        hash_hits_days_num2 = 0
+        for row2 in query_set_2:
+            hash_hits_days_num2 += 1
+            hits = {}            
+            r2_index = 0       
+            for r2 in row2:
+                if(r2_index == 0):
+                    hits['hash'] = r2
+                elif(r2_index == 1):
+                    hits['time'] = r2
+                elif(r2_index == 2):
+                    hits['hits_num'] = r2
+                r2_index += 1
+            #print '%s, %s, %d' % (hits['hash'], hits['time'], hits['hits_num'])
+            hash_total_hits_num2 = hash_total_hits_num2 + hits['hits_num']
+        
+        mean_hits_num2 = 0
+        if(hash_hits_days_num2>0):
+            mean_hits_num2 = hash_total_hits_num2/hash_hits_days_num2
+        
+        total_hits_num1 = total_hits_num1 + mean_hits_num1
+        total_hits_num2 = total_hits_num2 + mean_hits_num2
+        hits_num_diff = mean_hits_num2 - mean_hits_num1
+        hits_num_square = hits_num_diff * hits_num_diff
+        total_hits_diff_square = total_hits_diff_square + hits_num_square        
+        print '%d: %s, %s, %d-%d=%d, square=%d, total_square=%f, total_hits_num1=%f, total_hits_num1=%f' \
+        % (evaluate_num, task1['hash'], task1['online_time'], mean_hits_num2, mean_hits_num1, hits_num_diff, hits_num_square, total_hits_diff_square, total_hits_num1, total_hits_num2)
+        
+    MSE = math.sqrt(total_hits_diff_square / evaluate_num);
+    mean_hits1 = total_hits_num1/evaluate_num
+    mean_hits2 = total_hits_num2/evaluate_num
+    
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    print 'end@ %s' % (end_time)
+    output = 'now: %s, ' % (end_time)
+    output += 'DAY_WEEK_BEGIN: %s, DAY_WEEK_END: %s, DAY_PREDICT: %s, ' % (DAY_WEEK_BEGIN, DAY_WEEK_END, DAY_PREDICT)
     output += 'tasks_num: %d, evaluate_num: %d, ' % (tasks_num, evaluate_num)
     output += 'total_hits1: %f, mean_hits1: %f, ' % (total_hits_num1, mean_hits1)
     output += 'total_hits2: %f, mean_hits2: %f, ' % (total_hits_num2, mean_hits2)
