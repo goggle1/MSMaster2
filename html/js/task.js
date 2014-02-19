@@ -763,6 +763,7 @@ var taskJS = function(){
 			return true;
 		}
 				
+		var yesterday = getDiffDate(-1, 2);
 		
 		var calc_temperature_form = new Ext.FormPanel({
 			id: 'calc_temperature_form_' + self.plat,
@@ -789,12 +790,11 @@ var taskJS = function(){
 					blankText: '截止日期可以为空'
 				},	*/	
 				{
-				    xtype:'checkbox',
-				    id: 'calc_renew',
-				    name: 'calc_renew',
-				    //align:'left',
-				    fieldLabel:'是否全新计算',
-				    checked: false
+					fieldLabel:'date',	
+					name: 'date', 
+					value: yesterday, 
+					allowBlank: false,
+					blankText: '日期不能为空'
 				},			
 				{
 				    xtype:'checkbox',

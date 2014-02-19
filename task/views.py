@@ -1000,11 +1000,11 @@ def do_calc_temperature(platform, record):
 '''
 
 
-def calc_week_temperature(db, table_hits, hash_id, begin_time, week_index):
+def calc_week_temperature(db, table_hits, hash_id, begin_time):
     str_date = begin_time    
-    day_delta = 7+week_index*7
+    day_delta = 7*8
     week_begin = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[5:7]), string.atoi(str_date[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
-    day_delta = 1+week_index*7
+    day_delta = 1
     week_end  = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[5:7]), string.atoi(str_date[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
     
     DAY_WEEK_BEGIN = '%04d-%02d-%02d' % (week_begin.year, week_begin.month, week_begin.day)
@@ -1015,12 +1015,9 @@ def calc_week_temperature(db, table_hits, hash_id, begin_time, week_index):
     #print sql2
     db.execute(sql2)
     query_set_2 = db.cur.fetchall()
-    hash_total_hits_num1 = 0        
-    hash_hits_days_num1 = 0
     
-    hits_array = [0]*7 
+    hits_array = [0]*56 
     for row2 in query_set_2:
-        hash_hits_days_num1 += 1
         hits = {}            
         r2_index = 0       
         for r2 in row2:
@@ -1035,20 +1032,25 @@ def calc_week_temperature(db, table_hits, hash_id, begin_time, week_index):
         str_date=hits['time'].strftime("%Y-%m-%d %H:%M:%S")
         #print str_date
         day_index = day_diff(str_date, DAY_WEEK_BEGIN)
-        hits_array[day_index] = hits['hits_num']
-        hash_total_hits_num1 = hash_total_hits_num1 + hits['hits_num']
+        hits_array[day_index] = hits['hits_num']        
+        
+    find_first_not_zero = False
+    hash_temperature = 0.0
+    for week_index in range(0, 8):
+        reverse_week_index = 7 - week_index
+        hash_week_hits_num = 0
+        week_hits_day_num = 7
+        for day_index in range(0, 7):
+            if(find_first_not_zero == False):
+                if(hits_array[week_index*7+day_index] != 0):
+                    find_first_not_zero = True
+                    week_hits_day_num = 7 - day_index
+            hash_week_hits_num += hits_array[week_index*7+day_index]
+        hash_week_mean_hits_num = float(hash_week_hits_num) / week_hits_day_num
+        #print '%d / %d = %f' % (hash_week_hits_num, week_hits_day_num, hash_week_mean_hits_num)
+        hash_temperature +=   hash_week_mean_hits_num/(100000000**reverse_week_index)
     
-    hash_hits_days_num1 = 0
-    for index in range(0, 7):
-        if(hits_array[index] != 0):
-            hash_hits_days_num1 = 7 - index
-            break    
-    
-    mean_hits_num1 = 0.0
-    if(hash_hits_days_num1>0):
-        mean_hits_num1 = hash_total_hits_num1/hash_hits_days_num1
-    
-    return mean_hits_num1
+    return hash_temperature
 
 
 #def do_calc_temperature_week(platform, record):
@@ -1060,8 +1062,9 @@ def do_calc_temperature(platform, record):
     record.status = 1
     record.save()
     
+    str_date = record.name
     day_delta = 1
-    previous_date = datetime.datetime(string.atoi(begin_time[0:4]), string.atoi(begin_time[5:7]), string.atoi(begin_time[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)    
+    previous_date = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0) - datetime.timedelta(days=day_delta)    
     week_day = previous_date.weekday()
     
     table_temperature = '%s_task_temperature' % (platform)
@@ -1088,16 +1091,13 @@ def do_calc_temperature(platform, record):
         #print '%s, %s' % (task1['hash'], task1['online_time'])
                 
         tasks_num = tasks_num + 1
-        
-        total_temperature = 0.0
-        for week_index in range(0, 8):
-            temperature_week = calc_week_temperature(db, table_hits, task1['hash'], begin_time, week_index)
-            total_temperature = total_temperature + temperature_week/(100000000**week_index)
-            
+                
+        total_temperature = calc_week_temperature(db, table_hits, task1['hash'], begin_time)
+          
         sql3 = 'UPDATE %s SET temperature0=%e, temperature%d=%e WHERE hash="%s"' % (table_temperature, total_temperature, week_day+1, total_temperature, task1['hash'])
-        print sql3
+        #print sql3
         db.execute(sql3)        
-        #print '%s, %e' % (task1['hash'], total_temperature)        
+        print '%d, %s, %e' % (tasks_num, task1['hash'], total_temperature)
     
     db.close()
     
@@ -1778,6 +1778,19 @@ def sync_hash_db(request, platform):
     return response
 
 
+def operations_add_record_by_name(platform, record_list, operation1):
+    records = operation.views.get_operation_by_type_name(platform, operation1['type'], operation1['name'])
+    if(len(records) == 0):
+        record = operation.views.create_operation_record_by_dict(platform, operation1)
+        if(record != None):
+            record_list.append(record)
+        else:
+            return False
+    else:
+        return False
+    
+    
+
 def add_record_upload_hits_num(platform, record_list, operation1):
     records = operation.views.get_operation_by_type_name(platform, operation1['type'], operation1['name'])
     if(len(records) == 0):
@@ -1901,38 +1914,33 @@ def calc_temperature(request, platform):
     print 'calc_temperature'
     print request.REQUEST
     #{u'start_now': u'on', u'begin_date': u'20130922', u'end_date': u'20130923'}
-    #{u'begin_date': u'', u'end_date': u''}
-    calc_renew = False
-    start_now = False
-    if 'calc_renew' in request.REQUEST:
-        if(request.REQUEST['calc_renew'] == 'on'):
-            calc_renew = True
+    #{u'begin_date': u'', u'end_date': u''}    
+    start_now = False    
     if 'start_now' in request.REQUEST:
         if(request.REQUEST['start_now'] == 'on'):
             start_now = True
+            
+    str_date = request.REQUEST['date']
+    print str_date
     
     now_time = time.localtime(time.time())
     today = time.strftime("%Y-%m-%d", now_time)
     dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
-    
-    memo = ''
-    if(calc_renew == True):
-        memo = 'renew'
-        
+                
     operation = {}
     operation['type'] = 'calc_temperature'
-    operation['name'] = today
+    operation['name'] = str_date
     operation['user'] = request.user.username
     operation['dispatch_time'] = dispatch_time    
-    operation['memo'] = memo
+    operation['memo'] = ''
     
     return_datas = {}
     
     record_list = []
-    result = add_record_one_operation(platform, record_list, operation)
+    result = operations_add_record_by_name(platform, record_list, operation)
     if(result == False):
         return_datas['success'] = False
-        return_datas['data'] = 'calc_temperature operation add error, maybe exist.'
+        return_datas['data'] = 'calc_temperature operation add error, [%s] maybe exist.' % (str_date)
         return HttpResponse(json.dumps(return_datas))
     
     if(start_now == True):        
