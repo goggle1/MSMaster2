@@ -1003,9 +1003,9 @@ def do_calc_temperature(platform, record):
 def calc_week_temperature(db, table_hits, hash_id, begin_time):
     str_date = begin_time    
     day_delta = 7*8
-    week_begin = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[5:7]), string.atoi(str_date[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    week_begin = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0) - datetime.timedelta(days=day_delta)
     day_delta = 1
-    week_end  = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[5:7]), string.atoi(str_date[8:10]), 0, 0, 0) - datetime.timedelta(days=day_delta)
+    week_end  = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0) - datetime.timedelta(days=day_delta)
     
     DAY_WEEK_BEGIN = '%04d-%02d-%02d' % (week_begin.year, week_begin.month, week_begin.day)
     DAY_WEEK_END   = '%04d-%02d-%02d' % (week_end.year, week_end.month, week_end.day)    
@@ -1092,7 +1092,7 @@ def do_calc_temperature(platform, record):
                 
         tasks_num = tasks_num + 1
                 
-        total_temperature = calc_week_temperature(db, table_hits, task1['hash'], begin_time)
+        total_temperature = calc_week_temperature(db, table_hits, task1['hash'], str_date)
           
         sql3 = 'UPDATE %s SET temperature0=%e, temperature%d=%e WHERE hash="%s"' % (table_temperature, total_temperature, week_day+1, total_temperature, task1['hash'])
         #print sql3
