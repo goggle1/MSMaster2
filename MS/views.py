@@ -485,7 +485,7 @@ def ms_do_add_hot_tasks(platform, record):
         
     print 'ms_list num: %d' % (len(ms_list))            
     
-    ms_all = room.ms.MS_ALL(platform, ms_list, ms_id_list)
+    ms_all = room.ms.MS_GROUP(platform, ms_list, ms_id_list)
     #ms_all.get_tasks()
     ms_all.get_tasks_macross()
     
@@ -607,7 +607,7 @@ def ms_do_delete_cold_tasks(platform, record):
         
     print 'ms_list num: %d' % (len(ms_list))
     
-    ms_all = room.ms.MS_ALL(platform, ms_list, ms_id_list)
+    ms_all = room.ms.MS_GROUP(platform, ms_list, ms_id_list)
     #ms_all.get_tasks()
     ms_all.get_tasks_macross()
     
@@ -883,7 +883,7 @@ def ms_add_hot_tasks(request, platform):
     operation1['memo'] = '%s|%s' % (v_suggest_task_number, v_num_dispatching)
         
     output = ''
-    records = operation.views.get_operation_record_undone(platform, operation1['type'], operation1['name'])    
+    records = operation.views.get_operation_undone_by_type_name(platform, operation1['type'], operation1['name'])    
     if(len(records) > 0):
         for record in records:
             output += 'operation exist, id=%d, type=%s, name=%s, dispatch_time=%s, status=%d' % (record.id, record.type, record.name, record.dispatch_time, record.status)
@@ -946,7 +946,7 @@ def ms_delete_cold_tasks(request, platform):
     operation1['memo'] = '%s|%s' % (v_suggest_task_number, v_num_deleting)
         
     output = ''
-    records = operation.views.get_operation_record_undone(platform, operation1['type'], operation1['name'])    
+    records = operation.views.get_operation_undone_by_type_name(platform, operation1['type'], operation1['name'])    
     if(len(records) > 0):
         for record in records:
             output += 'operation exist, id=%d, type=%s, name=%s, dispatch_time=%s, status=%d' % (record.id, record.type, record.name, record.dispatch_time, record.status)

@@ -42,7 +42,7 @@ def get_operation_undone_by_type(platform, v_type):
     return records
 
 
-def get_operation_record_undone(platform, v_type, v_name):
+def get_operation_undone_by_type_name(platform, v_type, v_name):
     records = []
     if(platform == 'mobile'):
         records = models.mobile_operation.objects.filter(type=v_type, name=v_name).exclude(status=models.STATUS_DONE)
@@ -201,6 +201,10 @@ def do_operation(platform, operation):
             result = room.views.do_delete_cold_tasks(platform, operation)  
         elif(operation.type == 'add_hot_tasks'):
             result = room.views.do_add_hot_tasks(platform, operation)
+        elif(operation.type == 'auto_distribute_tasks'):
+            result = room.views.do_auto_distribute_tasks(platform, operation)
+        #elif(operation.type == 'auto_delete_tasks'):
+        #    result = room.views.do_auto_delete_tasks(platform, operation)
         elif(operation.type == 'ms_delete_cold_tasks'):
             result = MS.views.ms_do_delete_cold_tasks(platform, operation)
         elif(operation.type == 'ms_add_hot_tasks'):

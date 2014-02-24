@@ -3,6 +3,7 @@ import time
 import urllib
 import urllib2
 import hashlib
+import random
 
 import DB.db
 
@@ -15,34 +16,25 @@ class MS_INFO:
         self.task_dict = {}
         self.add_list = []
         self.delete_dict = {}
-    
+        self.init_task_num = 0
+        self.distribute_num_for_topN = 0
+        self.distribute_num_for_ALL = 0
+        self.add_filesize = 0L        
         self.platform = v_platform
         self.db_record = v_db_record
         
-       
-    def __del__(self):
-        print "in MS_INFO.delete()"
-        self.platform = None
-        self.db_record = None
         
-        self.task_dict.clear()
-        self.delete_dict.clear()   
-        del self.add_list[:]
-        
-        self.task_dict = None
-        self.delete_dict = None
-        self.add_list = None
-            
-        
-        
-class MS_ALL:
+class MS_GROUP:
     #MACROSS_IP = '192.168.160.128'
     #MACROSS_PORT = 80
     MACROSS_IP = 'macross.funshion.com'
     MACROSS_PORT = 27777
     BATCH_NUM = 2000
     
-    def __init__(self, v_platform, v_ms_list, v_ms_id_list = None):
+    def __init__(self, v_platform, v_ms_list = None, v_ms_id_list = None):
+        self.log_file = None
+        
+        self.in_ms_list = v_ms_list
         self.ms_list = []
         self.ms_list_allowed_add = []
         self.ms_list_allowed_delete = []
@@ -51,9 +43,10 @@ class MS_ALL:
         
         self.platform = v_platform
         
-        for ms in v_ms_list:
-            ms_info = MS_INFO(v_platform, ms)
-            self.ms_list.append(ms_info)
+        if(v_ms_list != None):
+            for ms in v_ms_list:
+                ms_info = MS_INFO(v_platform, ms)
+                self.ms_list.append(ms_info)
             
         if(v_ms_id_list != None):
             for ms_id in v_ms_id_list:
@@ -69,29 +62,6 @@ class MS_ALL:
                 self.ms_list_allowed_delete.append(ms_info)
                 if(ms_info.db_record.is_dispatch == 1):
                     self.ms_list_allowed_add.append(ms_info)
-            
-    def __del__(self):
-        print "in MS_ALL.delete()"  
-        self.platform = None
-        
-        for ms_info in self.ms_list:
-            del ms_info      
-        for ms_info in self.ms_list_allowed_add:
-            del ms_info
-        for ms_info in self.ms_list_allowed_delete:
-            del ms_info        
-        for ms_id in self.ms_id_list:
-            del ms_id
-            
-        del self.ms_list[:]
-        del self.ms_list_allowed_add[:]    
-        del self.ms_list_allowed_delete[:]  
-        del self.ms_id_list[:]
-        
-        self.ms_list = None
-        self.ms_list_allowed_add = None    
-        self.ms_list_allowed_delete = None  
-        self.ms_id_list = None
                    
     
     def get_tasks(self):
@@ -160,7 +130,10 @@ class MS_ALL:
                         #print str(r)
                         one.task_dict[str(r)] = '1'                                 
                     col_num += 1   
+            one.init_task_num = len(one.task_dict)
             print '%d, %s get tasks end, task_number=%d' % (one.db_record.server_id, one.db_record.controll_ip, len(one.task_dict)) 
+            if(self.log_file != None):
+                self.log_file.write('%d, %s get tasks end, task_number=%d\n' % (one.db_record.server_id, one.db_record.controll_ip, len(one.task_dict)))
         db.close()  
         #del db
         return True
@@ -196,6 +169,33 @@ class MS_ALL:
         if(self.round_robin_index >= len(self.ms_list_allowed_add)):
                 self.round_robin_index = self.round_robin_index % len(self.ms_list_allowed_add)
         return ms_info
+    
+    
+    def distribute_task(self, task_hash, task_size):   
+        if(len(self.ms_list_allowed_add) == 0):
+            return None
+        
+        total_free_disk_space = 0L
+        for ms_info in self.ms_list_allowed_add:
+            ms_free_disk_space_left = ms_info.db_record.free_disk_space*1024*1024*1024 - ms_info.add_filesize
+            total_free_disk_space += ms_free_disk_space_left
+            
+        random_value = random.random()
+        total_free_disk_pos = total_free_disk_space * random_value
+        #print 'total_free_disk_space=%ld, total_free_disk_pos=%ld' % (total_free_disk_space, total_free_disk_pos) 
+        if(self.log_file != None):
+                self.log_file.write('total_free_disk_space=%ld, total_free_disk_pos=%ld \n' % (total_free_disk_space, total_free_disk_pos) )
+        temp_free_disk_space = 0L
+        for ms_info in self.ms_list_allowed_add:
+            ms_free_disk_space_left = ms_info.db_record.free_disk_space*1024*1024*1024 - ms_info.add_filesize
+            if(total_free_disk_pos >= temp_free_disk_space and total_free_disk_pos <= (temp_free_disk_space + ms_free_disk_space_left)):
+                ms_info.add_list.append(task_hash)
+                ms_info.task_dict[task_hash] = '1'
+                ms_info.add_filesize += task_size
+                return ms_info
+            temp_free_disk_space += ms_free_disk_space_left
+        
+        return None
         
     
     def ms_is_allowed_delete(self, one_ms):
@@ -260,7 +260,9 @@ class MS_ALL:
         values['sign']      = sign
                 
         url = 'http://%s:%d/api/?cli=ms&cmd=report_hot_task' % (self.MACROSS_IP, self.MACROSS_PORT)
-        #print 'ms_id=%d, ms_ip=%s, task_num=%d, url=%s' % (one.db_record.server_id, one.db_record.controll_ip, num, url)
+        print 'ms_id=%d, ms_ip=%s, task_num=%d, url=%s' % (one.db_record.server_id, one.db_record.controll_ip, num, url)
+        if(self.log_file != None):
+            self.log_file.write('ms_id=%d, ms_ip=%s, task_num=%d, url=%s\n' % (one.db_record.server_id, one.db_record.controll_ip, num, url))
         
         data = urllib.urlencode(values)
         #print data
@@ -378,5 +380,102 @@ class MS_ALL:
         return one
     
     
+    def copy(self):
+        one_group = MS_GROUP(self.platform)
+        one_group.ms_list = self.ms_list[:]
+        one_group.ms_list_allowed_add = self.ms_list_allowed_add[:]
+        one_group.ms_list_allowed_delete = self.ms_list_allowed_delete[:]
+        return one_group
     
+    
+    def combine_group(self, ms_group):
+        self.ms_list.extend(ms_group.ms_list)
+        self.ms_list_allowed_add.extend(ms_group.ms_list_allowed_add)
+        self.ms_list_allowed_delete.extend(ms_group.ms_list_allowed_delete)
+        self.ms_id_list.extend(ms_group.ms_id_list)
+        self.round_robin_index = 0
+        return True
+    
+    
+    def distribute_topN(self, task_list, topN):
+        print 'distribute_topN'
+        if(self.log_file != None):
+            self.log_file.write('distribute_topN\n' )
+        task_num = 0
+        for one_task in task_list:
+            one_ms = self.find_task(one_task['hash'])
+            if(one_ms == None):
+                one_ms = self.distribute_task(one_task['hash'], one_task['filesize'])
+                if(one_ms != None):
+                    #print '%d: %s[%e][%d] distribute to %s' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip) 
+                    if(self.log_file != None):
+                        self.log_file.write('%d: %s[%e][%d] distribute to %s \n' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip))
+                else:
+                    #print '%d: %s[%e][%d] can not be distributed!' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize']) 
+                    if(self.log_file != None):
+                        self.log_file.write('%d: %s[%e][%d] can not be distributed!\n' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize']))
+            else:
+                #print '%d: %s[%e][%d] exist in %s' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip)   
+                if(self.log_file != None):
+                        self.log_file.write('%d: %s[%e][%d] exist in %s\n' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip) )         
+            task_num += 1
+            if(task_num >= topN):
+                break
+        for one_ms in self.ms_list_allowed_add:
+            one_ms.distribute_num_for_topN = len(one_ms.add_list) 
+        return True
+
+
+    def distribute_ALL(self, task_list):
+        print 'distribute_ALL'
+        if(self.log_file != None):
+            self.log_file.write('distribute_ALL\n' )
+        task_num = 0
+        for one_task in task_list:
+            one_ms = self.find_task(one_task['hash'])
+            if(one_ms == None):
+                one_ms = self.distribute_task(one_task['hash'], one_task['filesize'])
+                if(one_ms != None):
+                    #print '%d: %s[%e][%d] distribute to %s' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip) 
+                    if(self.log_file != None):
+                        self.log_file.write('%d: %s[%e][%d] distribute to %s \n' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip))
+                else:
+                    #print '%d: %s[%e][%d] can not be distributed!' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize']) 
+                    if(self.log_file != None):
+                        self.log_file.write('%d: %s[%e][%d] can not be distributed!\n' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize']))
+            else:
+                #print '%d: %s[%e][%d] exist in %s' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip)   
+                if(self.log_file != None):
+                        self.log_file.write('%d: %s[%e][%d] exist in %s\n' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip) )         
+            task_num += 1 
+        for one_ms in self.ms_list_allowed_add:
+            one_ms.distribute_num_for_ALL = len(one_ms.add_list)        
+        return True
         
+
+    def get_distribute_num(self):
+        total_num = 0
+        for one_ms in self.ms_list:
+            total_num += len(one_ms.add_list)
+        return total_num
+    
+    def get_init_num(self):
+        total_num = 0
+        for one_ms in self.ms_list:
+            total_num += one_ms.init_task_num
+        return total_num
+    
+    
+    def set_log(self, log_file):
+        self.log_file = log_file
+        return True
+        
+    def report_summary(self):        
+        for one_ms in self.ms_list_allowed_add:
+            distribute_num_diff = one_ms.distribute_num_for_ALL - one_ms.distribute_num_for_topN
+            print '%s[%s], %s, %d, %d, %d, %d' % (one_ms.db_record.server_name, one_ms.db_record.room_name, one_ms.db_record.controll_ip, one_ms.init_task_num, \
+                                                  one_ms.distribute_num_for_topN, distribute_num_diff, one_ms.distribute_num_for_ALL)
+            if(self.log_file != None):
+                self.log_file.write('%s[%s], %s, %d, %d, %d, %d\n' % (one_ms.db_record.server_name, one_ms.db_record.room_name, one_ms.db_record.controll_ip, one_ms.init_task_num, \
+                                                                      one_ms.distribute_num_for_topN, distribute_num_diff, one_ms.distribute_num_for_ALL))
+        return True

@@ -49,7 +49,7 @@ def hot_tasks_to_rooms(platform, file_name):
         for one_ms in target_ms_list:
             log_file.write('ms_id=%d, ms_ip=%s, is_dispatch=%d\n' % (one_ms.server_id, one_ms.controll_ip, one_ms.is_dispatch)) 
         
-        ms_all = room.ms.MS_ALL(platform, target_ms_list)
+        ms_all = room.ms.MS_GROUP(platform, target_ms_list)
         
         for one_task in task_list:
             ms_info = ms_all.dispatch_hot_task(one_task)

@@ -90,6 +90,35 @@ def get_tasks_hits(platform):
     return task_list
 
 
+def get_tasks_sql(platform):
+    task_list = []
+    
+    db = DB.db.DB_MYSQL()
+    db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
+  
+    sql = "SELECT hash, online_time, filesize, temperature0 FROM %s_task_temperature ORDER BY temperature0 DESC, online_time DESC" % (platform)         
+    print sql
+    db.execute(sql)
+    
+    for row in db.cur.fetchall():
+        task1 = {}      
+        col_num = 0  
+        for r in row:
+            if(col_num == 0):
+                task1['hash'] = r
+            elif(col_num == 1):
+                task1['online_time'] = r            
+            elif(col_num == 2):
+                task1['filesize'] = r
+            elif(col_num == 3):
+                task1['temperature0'] = r
+            col_num += 1
+        task_list.append(task1)
+        
+    print 'task_list num: %d' % (len(task_list)) 
+    return task_list
+
+
 def get_cold_tasks_rule1(platform):
     task_list = []
     
@@ -1062,10 +1091,10 @@ def do_calc_temperature(platform, record):
     record.status = 1
     record.save()
     
-    str_date = record.name
-    day_delta = 1
-    previous_date = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0) - datetime.timedelta(days=day_delta)    
-    week_day = previous_date.weekday()
+    str_date = record.name    
+    the_date = datetime.datetime(string.atoi(str_date[0:4]), string.atoi(str_date[4:6]), string.atoi(str_date[6:8]), 0, 0, 0)    
+    week_day = the_date.weekday()
+    print 'week_day: %d' % (week_day)
     
     table_temperature = '%s_task_temperature' % (platform)
     table_hits = '%s_task_hits' % (platform)
