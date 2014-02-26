@@ -762,8 +762,8 @@ var taskJS = function(){
 			Ext.getCmp("calc_temperature_win_" + self.plat).show();
 			return true;
 		}
-				
-		var yesterday = getDiffDate(-1, 2);
+		
+		var today = getDiffDate(0, 2);
 		
 		var calc_temperature_form = new Ext.FormPanel({
 			id: 'calc_temperature_form_' + self.plat,
@@ -774,25 +774,11 @@ var taskJS = function(){
 			bodyStyle:'padding:5px 5px 0',
 			labelWidth:150,
 			defaults:{xtype:'textfield',width:200},
-			items: [				
-			/*	{
-					fieldLabel:'begin_date',	
-					name: 'begin_date', 
-					value: yesterday, 
-					allowBlank: false,
-					blankText: '开始日期不能为空'
-				},
-				{
-					fieldLabel:'end_date',	
-					name: 'end_date', 
-					value: '', 
-					allowBlank: true,
-					blankText: '截止日期可以为空'
-				},	*/	
+			items: [							
 				{
 					fieldLabel:'date',	
 					name: 'date', 
-					value: yesterday, 
+					value: today, 
 					allowBlank: false,
 					blankText: '日期不能为空'
 				},			
@@ -868,7 +854,7 @@ var taskJS = function(){
 			return true;
 		}
 		
-		var yesterday = getDiffDate(-1, 2);
+		var today = getDiffDate(0, 2);
 		
 		var evaluate_temperature_form = new Ext.FormPanel({
 			id: 'evaluate_temperature_form',
@@ -883,7 +869,7 @@ var taskJS = function(){
 				{
 					fieldLabel:'date',	
 					name: 'date', 
-					value: yesterday, 
+					value: today, 
 					allowBlank: false,
 					blankText: '日期不能为空'
 				},					

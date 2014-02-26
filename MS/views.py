@@ -525,7 +525,7 @@ def ms_do_add_hot_tasks(platform, record):
     print 'hot_tasks count: %d' % (hot_tasks.count())
     for task1 in hot_tasks.iterator():
         print 'hot task: %e, %s' % (task1.temperature0, task1.hash)
-        one_ms = ms_all.find_task(task1.hash)
+        one_ms = ms_all.find_ms_by_task(task1.hash)
         if(one_ms == None):                        
             result = ms_all.dispatch_hot_task(task1.hash)
             if(result == None):
@@ -647,7 +647,7 @@ def ms_do_delete_cold_tasks(platform, record):
     cold_tasks = tasks.order_by('temperature0')
     print 'cold_tasks count: %d' % (cold_tasks.count())
     for task1 in cold_tasks.iterator():
-        one_ms = ms_all.find_task(task1.hash)
+        one_ms = ms_all.find_ms_by_task(task1.hash)
         if(one_ms != None):
             #print '%s delete' % (task1.hash)            
             result = ms_all.delete_cold_task(one_ms, task1.hash)

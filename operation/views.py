@@ -203,8 +203,8 @@ def do_operation(platform, operation):
             result = room.views.do_add_hot_tasks(platform, operation)
         elif(operation.type == 'auto_distribute_tasks'):
             result = room.views.do_auto_distribute_tasks(platform, operation)
-        #elif(operation.type == 'auto_delete_tasks'):
-        #    result = room.views.do_auto_delete_tasks(platform, operation)
+        elif(operation.type == 'auto_delete_tasks'):
+            result = room.views.do_auto_delete_tasks(platform, operation)
         elif(operation.type == 'ms_delete_cold_tasks'):
             result = MS.views.ms_do_delete_cold_tasks(platform, operation)
         elif(operation.type == 'ms_add_hot_tasks'):
@@ -259,7 +259,9 @@ def operation_type_int(v_type):
                     'sync_room_status':8,           \
                     'delete_cold_tasks':9,          \
                     'add_hot_tasks':10,             \
-                    'evaluate_temperature':11       \
+                    'auto_distribute_tasks':11,     \
+                    'auto_delete_tasks':12,         \
+                    'evaluate_temperature':13       \
                 }
     if(type_dict.has_key(v_type) == True):
         result = type_dict[v_type]        

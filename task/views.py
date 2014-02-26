@@ -92,6 +92,7 @@ def get_tasks_hits(platform):
 
 def get_tasks_sql(platform):
     task_list = []
+    task_dict = {}
     
     db = DB.db.DB_MYSQL()
     db.connect(DB.db.MS2_DB_CONFIG.host, DB.db.MS2_DB_CONFIG.port, DB.db.MS2_DB_CONFIG.user, DB.db.MS2_DB_CONFIG.password, DB.db.MS2_DB_CONFIG.db)
@@ -113,10 +114,14 @@ def get_tasks_sql(platform):
             elif(col_num == 3):
                 task1['temperature0'] = r
             col_num += 1
+        #print 'task: %s, %s, %d, %e' % (task1['hash'], str(task1['online_time']), task1['filesize'], task1['temperature0'])
         task_list.append(task1)
+        task_dict[task1['hash']] = task1
+    
+    db.close()
         
     print 'task_list num: %d' % (len(task_list)) 
-    return task_list
+    return (task_list, task_dict)
 
 
 def get_cold_tasks_rule1(platform):
@@ -1948,12 +1953,14 @@ def calc_temperature(request, platform):
     if 'start_now' in request.REQUEST:
         if(request.REQUEST['start_now'] == 'on'):
             start_now = True
-            
-    str_date = request.REQUEST['date']
-    print str_date
     
     now_time = time.localtime(time.time())
-    today = time.strftime("%Y-%m-%d", now_time)
+    
+    str_date = time.strftime("%Y%m%d", now_time)
+    if 'date' in request.REQUEST:
+        str_date = request.REQUEST['date']    
+    print str_date
+    
     dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
                 
     operation = {}

@@ -18,6 +18,7 @@ import MS.views
 import datetime
 
 import sys
+
                                            
 def room_insert(platform, v_room_id, v_room_name, v_is_valid, v_check_time):
     if(platform == 'mobile'): 
@@ -239,7 +240,7 @@ def do_add_hot_tasks(platform, record):
     print 'hot_tasks count: %d' % (hot_tasks.count())
     #for task1 in hot_tasks:
     for task1 in hot_tasks.iterator():
-        one_ms = ms_all.find_task(task1.hash)
+        one_ms = ms_all.find_ms_by_task(task1.hash)
         if(one_ms == None):                        
             result = ms_all.dispatch_hot_task(task1.hash)
             if(result == None):
@@ -347,7 +348,7 @@ def do_delete_cold_tasks(platform, record):
     cold_tasks = all_tasks.order_by('temperature0')
     print 'cold_tasks count: %d' % (cold_tasks.count())
     for task1 in cold_tasks.iterator():
-        one_ms = ms_all.find_task(task1.hash)
+        one_ms = ms_all.find_ms_by_task(task1.hash)
         if(one_ms != None):
             #print '%s delete' % (task1.hash)            
             result = ms_all.delete_cold_task(one_ms, task1.hash)
@@ -487,6 +488,8 @@ class ROOM_T:
         self.init_task_num = 0
         self.distribute_num_for_topN = 0
         self.distribute_num_for_ALL = 0
+        self.keep_num_for_topN = 0
+        self.keep_num_for_ALL = 0
 
 
 def do_auto_distribute_tasks(platform, record):
@@ -496,22 +499,39 @@ def do_auto_distribute_tasks(platform, record):
     record.status = 1
     record.save()
 
+    url_params = record.memo
+    url_parts = url_params.split('&')
+    url_param_rooms = url_parts[0]  
+    url_param_topN = url_parts[1] 
+    
+    param_parts = url_param_rooms.split('=')
+    rooms_key = param_parts[0]    
+    rooms_value = param_parts[1]
+    
+    param_parts = url_param_topN.split('=')
+    topN_key = param_parts[0]    
+    topN_value = param_parts[1]
+    
     room_list = []
-    rooms_param = record.memo
-    rooms_fields = rooms_param.split('|')
+    rooms_fields = rooms_value.split('|')
     for room_param in rooms_fields:
-        room_fields = room_param.split(',')
-        room_id = string.atoi(room_fields[0], 10)
-        room_topN = string.atoi(room_fields[1], 10)
+        room_fields = room_param.split('@')
+        room_topN = string.atoi(room_fields[0], 10)
+        room_id = string.atoi(room_fields[1], 10)        
         one_room = ROOM_T(room_id, room_topN)
         room_list.append(one_room)
     
-    file_name = '%s.log' % (rooms_param)
+    rooms_topN = sys.maxint
+    if(topN_value == 'ALL'):
+        rooms_topN = sys.maxint
+    else:
+        rooms_topN = string.atoi(topN_value)
+    
+    file_name = '%s_%s.log' % (record.type, url_params)
     log_file = open(file_name, 'w')
     
     task_list = task.views.get_tasks_sql(platform)    
-    
-    init_info = ''
+        
     for one_room in room_list:
         ms_list = get_ms_list_in_room(platform, one_room.room_id)
         #print 'room_id: %d, ms num: %d' % (one_room.room_id, len(ms_list)) 
@@ -534,13 +554,14 @@ def do_auto_distribute_tasks(platform, record):
             big_ms_group.set_log(log_file)
         else:
             big_ms_group.combine_group(one_room.ms_group)            
-    big_ms_group.distribute_ALL(task_list)
+    #big_ms_group.distribute_ALL(task_list)
+    big_ms_group.distribute_topN(task_list, rooms_topN)
         
     for one_room in room_list:
         one_room.distribute_num_for_ALL = one_room.ms_group.get_distribute_num()
         
     big_ms_group.do_dispatch()    
-    big_ms_group.report_summary()
+    big_ms_group.report_distribute_summary()
             
     now_time = time.localtime(time.time())        
     end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
@@ -548,6 +569,100 @@ def do_auto_distribute_tasks(platform, record):
     for one_room in room_list:
         temp = '[%d, %d, %d, %d, %d, %d]' % (one_room.room_id, one_room.topN, one_room.init_task_num, \
                                              one_room.distribute_num_for_topN, one_room.distribute_num_for_ALL-one_room.distribute_num_for_topN, one_room.distribute_num_for_ALL)
+        print temp
+        log_file.write('%s\n' % temp)
+        output += temp      
+    record.end_time = end_time
+    record.status = 2        
+    record.memo = output
+    record.save()
+
+    log_file.close() 
+                    
+    return True
+
+
+def do_auto_delete_tasks(platform, record):
+    now_time = time.localtime(time.time())        
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    record.begin_time = begin_time
+    record.status = 1
+    record.save()
+
+    url_params = record.memo
+    print url_params
+    url_parts = url_params.split('&')
+    url_param_rooms = url_parts[0]  
+    url_param_topN = url_parts[1] 
+    
+    param_parts = url_param_rooms.split('=')
+    rooms_key = param_parts[0]    
+    rooms_value = param_parts[1]
+    
+    param_parts = url_param_topN.split('=')
+    topN_key = param_parts[0]    
+    topN_value = param_parts[1]
+    
+    room_list = []
+    rooms_fields = rooms_value.split('|')
+    for room_param in rooms_fields:
+        room_fields = room_param.split('@')
+        room_topN = string.atoi(room_fields[0], 10)
+        room_id = string.atoi(room_fields[1], 10)        
+        one_room = ROOM_T(room_id, room_topN)
+        room_list.append(one_room)
+    
+    rooms_topN = sys.maxint
+    if(topN_value == 'ALL'):
+        rooms_topN = sys.maxint
+    else:
+        rooms_topN = string.atoi(topN_value)
+    
+    file_name = '%s_%s.log' % (record.type, url_params)
+    log_file = open(file_name, 'w')
+    log_file.write('do_auto_delete_tasks %s begin\n' % url_params)
+    
+    (task_list, task_dict) = task.views.get_tasks_sql(platform)    
+        
+    for one_room in room_list:
+        ms_list = get_ms_list_in_room(platform, one_room.room_id)
+        print 'room_id: %d, ms num: %d' % (one_room.room_id, len(ms_list)) 
+        log_file.write('room: %d, ms num: %d \n' % (one_room.room_id, len(ms_list)) )
+        ms_group = MS_GROUP(platform, ms_list)        
+        one_room.ms_group = ms_group        
+        ms_group.set_log(log_file)
+        #ms_all.get_tasks()
+        ms_group.get_tasks_macross() 
+        ms_group.keep_topN(task_list, one_room.topN)
+        one_room.keep_num_for_topN = ms_group.get_keep_num()
+    
+    for one_room in room_list:
+        one_room.init_task_num = one_room.ms_group.get_init_num()
+            
+    big_ms_group = None
+    for one_room in room_list:
+        if(big_ms_group == None):
+            big_ms_group = one_room.ms_group.copy()
+            big_ms_group.set_log(log_file)
+        else:
+            big_ms_group.combine_group(one_room.ms_group)
+    big_ms_group.keep_ALL(task_list, rooms_topN)
+        
+    for one_room in room_list:
+        one_room.keep_num_for_ALL = one_room.ms_group.get_keep_num()
+        
+    big_ms_group.delete_complement(task_dict)
+    big_ms_group.do_delete()    
+    big_ms_group.report_delete_summary()
+            
+    now_time = time.localtime(time.time())        
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    output = 'now: %s, ' % (end_time)
+    for one_room in room_list:
+        keep_num_diff = one_room.keep_num_for_ALL - one_room.keep_num_for_topN
+        delete_num = one_room.init_task_num - one_room.keep_num_for_ALL
+        temp = '[%d, %d, %d, %d, %d, %d, %d]' % (one_room.room_id, one_room.topN, one_room.init_task_num, \
+                                             one_room.keep_num_for_topN, keep_num_diff, one_room.keep_num_for_ALL, delete_num)
         print temp
         log_file.write('%s\n' % temp)
         output += temp      
@@ -798,7 +913,8 @@ def sync_room_status(request, platform):
 
     
 def auto_distribute_tasks(request, platform):
-    print 'auto_distribute_tasks'
+    cmd = 'auto_distribute_tasks'
+    print cmd
     print request.REQUEST
     
     start_now = False
@@ -806,15 +922,20 @@ def auto_distribute_tasks(request, platform):
         if(request.REQUEST['start_now'] == 'on'):
             start_now = True
             
-    rooms_param = request.REQUEST['rooms']
-    name = rooms_param[0:10]
-    memo = rooms_param
+    param_rooms = request.REQUEST['rooms']
+    name = param_rooms[0:32]
+        
+    param_topN = 'ALL'
+    if 'topN' in request.REQUEST:
+        param_topN = request.REQUEST['topN']
+       
+    memo = 'rooms=%s&topN=%s' % (param_rooms, param_topN)
     
     now_time = time.localtime(time.time())    
     dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
     
     operation1 = {}
-    operation1['type'] = 'auto_distribute_tasks'
+    operation1['type'] = cmd
     operation1['name'] = name
     operation1['user'] = request.user.username
     operation1['dispatch_time'] = dispatch_time
@@ -846,4 +967,62 @@ def auto_distribute_tasks(request, platform):
     str_datas = json.dumps(return_datas)
     response = HttpResponse(str_datas, mimetype='application/json;charset=UTF-8')
     response['Content-Length'] = len(str_datas)
-    return response    
+    return response   
+
+
+def auto_delete_tasks(request, platform):
+    cmd = 'auto_delete_tasks'
+    print cmd
+    print request.REQUEST
+    
+    start_now = False
+    if 'start_now' in request.REQUEST:
+        if(request.REQUEST['start_now'] == 'on'):
+            start_now = True
+            
+    param_rooms = request.REQUEST['rooms']
+    name = param_rooms[0:32]
+        
+    param_topN = 'ALL'
+    if 'topN' in request.REQUEST:
+        param_topN = request.REQUEST['topN']
+       
+    memo = 'rooms=%s&topN=%s' % (param_rooms, param_topN)
+    
+    now_time = time.localtime(time.time())    
+    dispatch_time = time.strftime("%Y-%m-%d %H:%M:%S", now_time)
+    
+    operation1 = {}
+    operation1['type'] = cmd
+    operation1['name'] = name
+    operation1['user'] = request.user.username
+    operation1['dispatch_time'] = dispatch_time
+    operation1['memo'] = memo
+        
+    output = ''
+    records = operation.views.get_operation_undone_by_type_name(platform, operation1['type'], operation1['name'])    
+    if(len(records) > 0):
+        for record in records:
+            output += 'operation exist, id=%d, type=%s, name=%s, dispatch_time=%s, status=%d' % (record.id, record.type, record.name, record.dispatch_time, record.status)
+        return_datas = {'success':False, 'data':output} 
+        return HttpResponse(json.dumps(return_datas))
+        
+    record = operation.views.create_operation_record_by_dict(platform, operation1)
+    if(record == None):
+        output += 'operation create failure'
+        return_datas = {'success':False, 'data':output} 
+        return HttpResponse(json.dumps(return_datas)) 
+    
+    output += 'operation add, id=%d, type=%s, name=%s, dispatch_time=%s, status=%d' % (record.id, record.type, record.name, record.dispatch_time, record.status)    
+    
+    if(start_now == True):
+        # start process
+        p = Process(target=do_auto_delete_tasks, args=(platform, record))
+        p.start()    
+    
+    return_datas = {'success':True, 'data':output, "dispatch_time":dispatch_time}   
+    
+    str_datas = json.dumps(return_datas)
+    response = HttpResponse(str_datas, mimetype='application/json;charset=UTF-8')
+    response['Content-Length'] = len(str_datas)
+    return response     

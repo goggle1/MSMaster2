@@ -4,8 +4,16 @@ import urllib
 import urllib2
 import hashlib
 import random
+import datetime
+import string
 
 import DB.db
+
+def day_diff(date1, date2):
+    d1 = datetime.datetime(string.atoi(date1[0:4]), string.atoi(date1[5:7]), string.atoi(date1[8:10]))
+    d2 = datetime.datetime(string.atoi(date2[0:4]), string.atoi(date2[5:7]), string.atoi(date2[8:10]))
+    return (d1-d2).days
+
 
 class MS_INFO:
     
@@ -16,19 +24,26 @@ class MS_INFO:
         self.task_dict = {}
         self.add_list = []
         self.delete_dict = {}
+        self.keep_dict = {}
+        self.will_be_full = False
+        self.disk_can_be_used = 0L        
+        self.add_filesize = 0L        
         self.init_task_num = 0
         self.distribute_num_for_topN = 0
         self.distribute_num_for_ALL = 0
-        self.add_filesize = 0L        
+        self.keep_num_for_topN = 0
+        self.keep_num_for_ALL = 0
+        self.num_should_be_deleted = 0
+        self.num_actual_be_deleted = 0
         self.platform = v_platform
         self.db_record = v_db_record
         
         
 class MS_GROUP:
-    #MACROSS_IP = '192.168.160.128'
-    #MACROSS_PORT = 80
-    MACROSS_IP = 'macross.funshion.com'
-    MACROSS_PORT = 27777
+    MACROSS_IP = '192.168.160.128'
+    MACROSS_PORT = 80
+    #MACROSS_IP = 'macross.funshion.com'
+    #MACROSS_PORT = 27777
     BATCH_NUM = 2000
     
     def __init__(self, v_platform, v_ms_list = None, v_ms_id_list = None):
@@ -107,29 +122,86 @@ class MS_GROUP:
         return True
     
     
-    def get_tasks_macross(self):               
+    def get_tasks_macross_mobile(self):               
         db = DB.db.DB_MYSQL()
         #db.connect("192.168.8.101", 3317, "public", "funshion", "macross")
         db.connect(DB.db.DB_CONFIG.host, DB.db.DB_CONFIG.port, DB.db.DB_CONFIG.user, DB.db.DB_CONFIG.password, DB.db.DB_CONFIG.db)        
         
         for one in self.ms_list:
-            print '%d, %s get tasks begin' % (one.db_record.server_id, one.db_record.controll_ip)            
-            sql = "" 
-            if(self.platform == 'mobile'):
-                sql = "SELECT dat_hash FROM fs_mobile_dat d, fs_mobile_ms_dat m WHERE d.dat_id = m.dat_id AND m.server_id=%d" % (one.db_record.server_id)
-            elif(self.platform == 'pc'):
-                sql = "SELECT task_hash FROM fs_task t,fs_ms_task m WHERE t.task_id = m.task_id AND m.server_id=%d" % (one.db_record.server_id)    
+            print '%d, %s get tasks begin' % (one.db_record.server_id, one.db_record.controll_ip)
+            
+            sql = "SELECT d.dat_hash, d.create_time, d.filesize FROM fs_mobile_dat d, fs_mobile_ms_dat m WHERE d.dat_id = m.dat_id AND m.server_id=%d" % (one.db_record.server_id)                
             print sql
             db.execute(sql)      
             #print type(db.cur)  
             #print type(db.cur.fetchall())
             for row in db.cur.fetchall():
                 col_num = 0
+                one_task = {}
                 for r in row:
                     if(col_num == 0):
                         #print str(r)
-                        one.task_dict[str(r)] = '1'                                 
-                    col_num += 1   
+                        one_task['hash'] = r
+                    elif(col_num == 1):
+                        #print str(r)
+                        one_task['online_time'] = r
+                    elif(col_num == 2):
+                        #print str(r)
+                        one_task['filesize'] = r                                
+                    col_num += 1  
+                one.task_dict[one_task['hash']] = one_task 
+                
+            sql = "SELECT video_hash, create_time, filesize FROM fs_video_dat where server_id=%d" % (one.db_record.server_id)                
+            print sql
+            db.execute(sql)      
+            #print type(db.cur)  
+            #print type(db.cur.fetchall())
+            for row in db.cur.fetchall():
+                col_num = 0
+                one_task = {}
+                for r in row:
+                    if(col_num == 0):
+                        one_task['hash'] = r
+                    elif(col_num == 1):
+                        one_task['online_time'] = r
+                    elif(col_num == 2):
+                        one_task['filesize'] = r                                
+                    col_num += 1  
+                one.task_dict[one_task['hash']] = one_task
+                
+            one.init_task_num = len(one.task_dict)            
+            print '%d, %s get tasks end, task_number=%d' % (one.db_record.server_id, one.db_record.controll_ip, len(one.task_dict)) 
+            if(self.log_file != None):
+                self.log_file.write('%d, %s get tasks end, task_number=%d\n' % (one.db_record.server_id, one.db_record.controll_ip, len(one.task_dict)))
+        db.close()  
+        #del db
+        return True
+    
+    
+    def get_tasks_macross_pc(self):               
+        db = DB.db.DB_MYSQL()
+        #db.connect("192.168.8.101", 3317, "public", "funshion", "macross")
+        db.connect(DB.db.DB_CONFIG.host, DB.db.DB_CONFIG.port, DB.db.DB_CONFIG.user, DB.db.DB_CONFIG.password, DB.db.DB_CONFIG.db)        
+        
+        for one in self.ms_list:
+            print '%d, %s get tasks begin' % (one.db_record.server_id, one.db_record.controll_ip)
+            sql = "SELECT t.task_hash, ts.create_time FROM fs_task t, fs_ms_task m WHERE t.task_id = m.task_id AND m.server_id=%d" % (one.db_record.server_id)    
+            print sql
+            db.execute(sql)      
+            #print type(db.cur)  
+            #print type(db.cur.fetchall())
+            for row in db.cur.fetchall():
+                col_num = 0
+                one_task = {}
+                for r in row:
+                    if(col_num == 0):
+                        one_task['hash'] = r
+                    elif(col_num == 1):
+                        one_task['online_time'] = r
+                    elif(col_num == 2):
+                        one_task['filesize'] = r                                 
+                    col_num += 1  
+                one.task_dict[one_task['hash']] = one_task
             one.init_task_num = len(one.task_dict)
             print '%d, %s get tasks end, task_number=%d' % (one.db_record.server_id, one.db_record.controll_ip, len(one.task_dict)) 
             if(self.log_file != None):
@@ -137,6 +209,14 @@ class MS_GROUP:
         db.close()  
         #del db
         return True
+    
+    
+    def get_tasks_macross(self):               
+        if(self.platform == 'mobile'):
+            return self.get_tasks_macross_mobile()
+        elif(self.platform == 'pc'):
+            return self.get_tasks_macross_pc()
+        return None   
             
             
             
@@ -147,17 +227,26 @@ class MS_GROUP:
         return total_num
             
             
-    def find_task(self, task_hash):
-        '''
-        for one in self.ms_list:
-            for hash_id in one.task_list:
-                if(hash_id == task_hash):
-                    return True
-        '''
+    def find_ms_by_task(self, task_hash):
         for one in self.ms_list:
             if(one.task_dict.has_key(task_hash)):
                 return one            
         return None
+    
+    
+    def find_ms_list_by_task(self, task_hash):
+        ms_list = []
+        for one in self.ms_list:
+            if ((one.keep_dict.has_key(task_hash)==False) and (one.task_dict.has_key(task_hash)==True)):
+                ms_list.append(one)            
+        return ms_list
+    
+    
+    def find_task_is_keeped(self, task_hash):
+        for one in self.ms_list:
+            if (one.keep_dict.has_key(task_hash)==True):
+                return True            
+        return False
             
         
     def dispatch_hot_task(self, task_hash):   
@@ -175,10 +264,27 @@ class MS_GROUP:
         if(len(self.ms_list_allowed_add) == 0):
             return None
         
+        if(task_size > 4*1024*1024*1024):
+            task_size = 4*1024*1024*1024
+        
+        USAGE_RATIO = 90.0/100
+        FREE_RATIO = 1.0 - USAGE_RATIO
         total_free_disk_space = 0L
         for ms_info in self.ms_list_allowed_add:
-            ms_free_disk_space_left = ms_info.db_record.free_disk_space*1024*1024*1024 - ms_info.add_filesize
-            total_free_disk_space += ms_free_disk_space_left
+            if(ms_info.will_be_full == True):
+                continue
+            ms_total_disk_space = ms_info.db_record.total_disk_space*1024*1024*1024
+            ms_free_disk_space = ms_info.db_record.free_disk_space*1024*1024*1024
+            if(ms_free_disk_space <= ms_total_disk_space * FREE_RATIO):
+                ms_info.will_be_full = True
+                continue
+            ms_free_disk_left = ms_free_disk_space - ms_info.add_filesize
+            if(ms_free_disk_left <= ms_total_disk_space * FREE_RATIO):
+                ms_info.will_be_full = True
+                continue
+            ms_can_be_used_disk = ms_free_disk_left - ms_total_disk_space * FREE_RATIO
+            ms_info.disk_can_be_used = ms_can_be_used_disk
+            total_free_disk_space += ms_can_be_used_disk
             
         random_value = random.random()
         total_free_disk_pos = total_free_disk_space * random_value
@@ -186,14 +292,22 @@ class MS_GROUP:
         if(self.log_file != None):
                 self.log_file.write('total_free_disk_space=%ld, total_free_disk_pos=%ld \n' % (total_free_disk_space, total_free_disk_pos) )
         temp_free_disk_space = 0L
-        for ms_info in self.ms_list_allowed_add:
-            ms_free_disk_space_left = ms_info.db_record.free_disk_space*1024*1024*1024 - ms_info.add_filesize
-            if(total_free_disk_pos >= temp_free_disk_space and total_free_disk_pos <= (temp_free_disk_space + ms_free_disk_space_left)):
+        for ms_info in self.ms_list_allowed_add: 
+            if(ms_info.will_be_full == True):
+                continue
+            # find the proper position firstly
+            if(total_free_disk_pos >= temp_free_disk_space and total_free_disk_pos <= (temp_free_disk_space + ms_info.disk_can_be_used)):
+                '''
+                if(task_size >= ms_info.disk_can_be_used):
+                    # move to next
+                    temp_free_disk_space += ms_info.disk_can_be_used
+                    continue
+                '''
                 ms_info.add_list.append(task_hash)
                 ms_info.task_dict[task_hash] = '1'
                 ms_info.add_filesize += task_size
                 return ms_info
-            temp_free_disk_space += ms_free_disk_space_left
+            temp_free_disk_space += ms_info.disk_can_be_used
         
         return None
         
@@ -260,7 +374,7 @@ class MS_GROUP:
         values['sign']      = sign
                 
         url = 'http://%s:%d/api/?cli=ms&cmd=report_hot_task' % (self.MACROSS_IP, self.MACROSS_PORT)
-        print 'ms_id=%d, ms_ip=%s, task_num=%d, url=%s' % (one.db_record.server_id, one.db_record.controll_ip, num, url)
+        #print 'ms_id=%d, ms_ip=%s, task_num=%d, url=%s' % (one.db_record.server_id, one.db_record.controll_ip, num, url)
         if(self.log_file != None):
             self.log_file.write('ms_id=%d, ms_ip=%s, task_num=%d, url=%s\n' % (one.db_record.server_id, one.db_record.controll_ip, num, url))
         
@@ -340,14 +454,16 @@ class MS_GROUP:
         values['sign']      = sign
                 
         url = 'http://%s:%d/api/?cli=ms&cmd=report_cold_task' % (self.MACROSS_IP, self.MACROSS_PORT)        
-        print 'ms_id=%d, ms_ip=%s, task_num=%d, url=%s' % (one.db_record.server_id, one.db_record.controll_ip, num, url)
+        #print 'ms_id=%d, ms_ip=%s, task_num=%d, url=%s' % (one.db_record.server_id, one.db_record.controll_ip, num, url)
+        if(self.log_file != None):
+            self.log_file.write('ms_id=%d, ms_ip=%s, task_num=%d, url=%s\n' % (one.db_record.server_id, one.db_record.controll_ip, num, url))
         
         data = urllib.urlencode(values)
         #print data
         req = urllib2.Request(url, data)
         response = urllib2.urlopen(req)
         the_page = response.read()
-        print the_page
+        #print the_page
         
         return True        
     
@@ -403,7 +519,7 @@ class MS_GROUP:
             self.log_file.write('distribute_topN\n' )
         task_num = 0
         for one_task in task_list:
-            one_ms = self.find_task(one_task['hash'])
+            one_ms = self.find_ms_by_task(one_task['hash'])
             if(one_ms == None):
                 one_ms = self.distribute_task(one_task['hash'], one_task['filesize'])
                 if(one_ms != None):
@@ -432,7 +548,7 @@ class MS_GROUP:
             self.log_file.write('distribute_ALL\n' )
         task_num = 0
         for one_task in task_list:
-            one_ms = self.find_task(one_task['hash'])
+            one_ms = self.find_ms_by_task(one_task['hash'])
             if(one_ms == None):
                 one_ms = self.distribute_task(one_task['hash'], one_task['filesize'])
                 if(one_ms != None):
@@ -452,12 +568,158 @@ class MS_GROUP:
             one_ms.distribute_num_for_ALL = len(one_ms.add_list)        
         return True
         
-
+    
+    def find_ms_max_space(self, ms_list):
+        ms_found = None
+        base_free_ratio = 0.0
+        for one_ms in ms_list:
+            if(one_ms.db_record.total_disk_space <= 0):
+                continue
+            free_ratio = float(one_ms.db_record.free_disk_space) / float(one_ms.db_record.total_disk_space)
+            if(free_ratio > base_free_ratio):
+                base_free_ratio = free_ratio
+                ms_found = one_ms
+        return ms_found
+    
+    
+    def choose_keep_unique(self, ms_list, task_hash):
+        ms_list_num = len(ms_list)
+        if(ms_list_num == 0):
+            return False
+        elif(ms_list_num == 1):            
+            ms_list[0].keep_dict[task_hash] = '1'
+        else:
+            ms_found = self.find_ms_max_space(ms_list)
+            if(ms_found != None):
+                ms_found.keep_dict[task_hash] = '1'                
+                if(self.log_file != None):
+                    self.log_file.write('choose %s, %s, %d, %d\n' % (ms_found.db_record.server_name, ms_found.db_record.controll_ip, ms_found.db_record.total_disk_space, ms_found.db_record.free_disk_space))
+        return True
+        
+        
+    def keep_topN(self, task_list, topN):
+        print 'keep_topN'
+        if(self.log_file != None):
+            self.log_file.write('keep_topN begin\n')
+        task_num = 0
+        for one_task in task_list:
+            ms_list = self.find_ms_list_by_task(one_task['hash'])
+            ms_list_num = len(ms_list)
+            if(ms_list_num<=0):
+                if(self.log_file != None):
+                    self.log_file.write('%d: %s [%s][%e] not found\n' % (task_num, one_task['hash'], one_task['online_time'], one_task['temperature0']))
+            else:                
+                if(self.log_file != None):
+                    self.log_file.write('%d: %s [%s][%e] found %d, choose_keep_unique\n' % (task_num, one_task['hash'], one_task['online_time'], one_task['temperature0'], ms_list_num))
+                    for one_ms in ms_list:
+                        self.log_file.write('%s, %s, %d, %d\n' % (one_ms.db_record.server_name, one_ms.db_record.controll_ip, one_ms.db_record.total_disk_space, one_ms.db_record.free_disk_space))
+                self.choose_keep_unique(ms_list, one_task['hash'])  
+            task_num += 1    
+            if(task_num>=topN):            
+                break 
+        for one_ms in self.ms_list_allowed_delete:
+            one_ms.keep_num_for_topN = len(one_ms.keep_dict)
+            print '%s, %s, keep_num_for_topN=%d' % (one_ms.db_record.server_name, one_ms.db_record.controll_ip, one_ms.keep_num_for_topN) 
+            if(self.log_file != None):
+                self.log_file.write('%s, %s, keep_num_for_topN=%d\n' % (one_ms.db_record.server_name, one_ms.db_record.controll_ip, one_ms.keep_num_for_topN))
+        if(self.log_file != None):
+            self.log_file.write('keep_topN end\n')
+                   
+        return True
+    
+    
+    def keep_ALL(self, task_list, topN):
+        print 'keep_ALL'
+        if(self.log_file != None):
+            self.log_file.write('keep_ALL begin\n')
+        task_num = 0
+        for one_task in task_list:
+            if(self.find_task_is_keeped(one_task['hash']) == True):  
+                if(self.log_file != None):
+                    self.log_file.write('%d: %s [%s][%e] have keeped\n' % (task_num, one_task['hash'], one_task['online_time'], one_task['temperature0']))
+            else:
+                ms_list = self.find_ms_list_by_task(one_task['hash'])
+                ms_list_num = len(ms_list)
+                if(ms_list_num<=0):
+                    if(self.log_file != None):
+                        self.log_file.write('%d: %s [%s][%e] not found\n' % (task_num, one_task['hash'], one_task['online_time'], one_task['temperature0']))
+                else:                
+                    if(self.log_file != None):
+                        self.log_file.write('%d: %s [%s][%e] found %d, choose_keep_unique\n' % (task_num, one_task['hash'], one_task['online_time'], one_task['temperature0'], ms_list_num))
+                        for one_ms in ms_list:
+                            self.log_file.write('%s, %s, %d, %d\n' % (one_ms.db_record.server_name, one_ms.db_record.controll_ip, one_ms.db_record.total_disk_space, one_ms.db_record.free_disk_space))
+                    self.choose_keep_unique(ms_list, one_task['hash'])  
+            task_num += 1    
+            if(task_num>=topN):            
+                break 
+        for one_ms in self.ms_list_allowed_delete:
+            one_ms.keep_num_for_ALL = len(one_ms.keep_dict) 
+            print '%s, %s, keep_num_for_ALL=%d' % (one_ms.db_record.server_name, one_ms.db_record.controll_ip, one_ms.keep_num_for_ALL)
+            if(self.log_file != None):
+                self.log_file.write('%s, %s, keep_num_for_ALL=%d\n' % (one_ms.db_record.server_name, one_ms.db_record.controll_ip, one_ms.keep_num_for_ALL))
+        if(self.log_file != None):
+            self.log_file.write('keep_ALL end\n')
+                   
+        return True
+        
+             
+    def delete_complement(self, task_dict):
+        if(self.log_file != None):
+            self.log_file.write('ms_list: %d, ms_list_allowed_delete: %d \n' % (len(self.ms_list), len(self.ms_list_allowed_delete)))
+            
+        now_time = time.localtime(time.time())        
+        today = time.strftime("%Y-%m-%d", now_time)
+        
+        DAYS_PROTECTED = 7
+    
+        for one_ms in self.ms_list_allowed_delete:  
+            one_ms.num_should_be_deleted = len(one_ms.task_dict) - len(one_ms.keep_dict)
+            if(self.log_file != None):
+                self.log_file.write('%s, %s, task_dict: %d, keep_dict: %d, delete_dict: %d \n' % (one_ms.db_record.server_name, one_ms.db_record.controll_ip, len(one_ms.task_dict), len(one_ms.keep_dict), len(one_ms.delete_dict)))         
+            for (key, value) in one_ms.task_dict.items():
+                if(one_ms.keep_dict.has_key(key) == False):
+                    one_ms.delete_dict[key] = value                    
+                    if(task_dict.has_key(key)):
+                        one_task = task_dict[key]
+                        task_online_time = one_task['online_time'].strftime("%Y-%m-%d")
+                        if(day_diff(today, task_online_time) <= DAYS_PROTECTED):
+                            del one_ms.delete_dict[key]
+                            if(self.log_file != None):
+                                self.log_file.write('%s [%s][%s] not keeped, within %d days\n' % (key, one_task['online_time'], one_task['temperature0'], DAYS_PROTECTED))
+                        else:
+                            if(self.log_file != None):
+                                self.log_file.write('%s [%s][%s] not keeped, which will be deleted\n' % (key, one_task['online_time'], one_task['temperature0']))                                
+                    else:
+                        task_online_time =value['online_time'].strftime("%Y-%m-%d")
+                        if(day_diff(today, task_online_time) <= DAYS_PROTECTED):
+                            del one_ms.delete_dict[key]
+                            if(self.log_file != None):
+                                self.log_file.write('%s [%s][%s] not keeped, within %d days\n' % (key, value['online_time'], 'unknown', DAYS_PROTECTED))                                
+                        else:
+                            if(self.log_file != None):
+                                self.log_file.write('%s [%s][%s] not keeped, which will be deleted\n' % (key, value['online_time'], 'unknown'))                                
+            one_ms.num_actual_be_deleted = len(one_ms.delete_dict)
+            if(self.log_file != None):
+                self.log_file.write('%s, %s, task_dict: %d, keep_dict: %d, delete_dict: %d,  num_should_be_deleted: %d, num_actual_be_deleted: %d\n' % \
+                                    (one_ms.db_record.server_name, one_ms.db_record.controll_ip, len(one_ms.task_dict), len(one_ms.keep_dict), len(one_ms.delete_dict), \
+                                     one_ms.num_should_be_deleted, one_ms.num_actual_be_deleted) \
+                                    ) 
+        return True    
+    
+    
     def get_distribute_num(self):
         total_num = 0
         for one_ms in self.ms_list:
             total_num += len(one_ms.add_list)
         return total_num
+    
+    
+    def get_keep_num(self):
+        total_num = 0
+        for one_ms in self.ms_list:
+            total_num += len(one_ms.keep_dict)
+        return total_num
+    
     
     def get_init_num(self):
         total_num = 0
@@ -470,7 +732,7 @@ class MS_GROUP:
         self.log_file = log_file
         return True
         
-    def report_summary(self):        
+    def report_distribute_summary(self):        
         for one_ms in self.ms_list_allowed_add:
             distribute_num_diff = one_ms.distribute_num_for_ALL - one_ms.distribute_num_for_topN
             print '%s[%s], %s, %d, %d, %d, %d' % (one_ms.db_record.server_name, one_ms.db_record.room_name, one_ms.db_record.controll_ip, one_ms.init_task_num, \
@@ -478,4 +740,15 @@ class MS_GROUP:
             if(self.log_file != None):
                 self.log_file.write('%s[%s], %s, %d, %d, %d, %d\n' % (one_ms.db_record.server_name, one_ms.db_record.room_name, one_ms.db_record.controll_ip, one_ms.init_task_num, \
                                                                       one_ms.distribute_num_for_topN, distribute_num_diff, one_ms.distribute_num_for_ALL))
+        return True
+    
+    
+    def report_delete_summary(self):        
+        for one_ms in self.ms_list_allowed_delete:
+            keep_num_diff = one_ms.keep_num_for_ALL - one_ms.keep_num_for_topN
+            print '%s[%s], %s, %d, %d, %d, %d, %d, %d' % (one_ms.db_record.server_name, one_ms.db_record.room_name, one_ms.db_record.controll_ip, one_ms.init_task_num, \
+                                                  one_ms.keep_num_for_topN, keep_num_diff, one_ms.keep_num_for_ALL, one_ms.num_should_be_deleted, one_ms.num_actual_be_deleted)
+            if(self.log_file != None):
+                self.log_file.write('%s[%s], %s, %d, %d, %d, %d, %d, %d\n' % (one_ms.db_record.server_name, one_ms.db_record.room_name, one_ms.db_record.controll_ip, one_ms.init_task_num, \
+                                                  one_ms.keep_num_for_topN, keep_num_diff, one_ms.keep_num_for_ALL, one_ms.num_should_be_deleted, one_ms.num_actual_be_deleted))
         return True
