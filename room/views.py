@@ -530,11 +530,11 @@ def do_auto_distribute_tasks(platform, record):
     file_name = '%s_%s.log' % (record.type, url_params)
     log_file = open(file_name, 'w')
     
-    task_list = task.views.get_tasks_sql(platform)    
+    (task_list, task_dict) = task.views.get_tasks_sql(platform)    
         
     for one_room in room_list:
         ms_list = get_ms_list_in_room(platform, one_room.room_id)
-        #print 'room_id: %d, ms num: %d' % (one_room.room_id, len(ms_list)) 
+        print 'room_id: %d, ms num: %d' % (one_room.room_id, len(ms_list)) 
         log_file.write('room: %d, ms num: %d \n' % (one_room.room_id, len(ms_list)) )
         ms_group = MS_GROUP(platform, ms_list)        
         one_room.ms_group = ms_group        
@@ -554,8 +554,7 @@ def do_auto_distribute_tasks(platform, record):
             big_ms_group.set_log(log_file)
         else:
             big_ms_group.combine_group(one_room.ms_group)            
-    #big_ms_group.distribute_ALL(task_list)
-    big_ms_group.distribute_topN(task_list, rooms_topN)
+    big_ms_group.distribute_ALL(task_list, rooms_topN)
         
     for one_room in room_list:
         one_room.distribute_num_for_ALL = one_room.ms_group.get_distribute_num()

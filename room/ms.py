@@ -40,10 +40,10 @@ class MS_INFO:
         
         
 class MS_GROUP:
-    MACROSS_IP = '192.168.160.128'
-    MACROSS_PORT = 80
-    #MACROSS_IP = 'macross.funshion.com'
-    #MACROSS_PORT = 27777
+    #MACROSS_IP = '192.168.160.128'
+    #MACROSS_PORT = 80
+    MACROSS_IP = 'macross.funshion.com'
+    MACROSS_PORT = 27777
     BATCH_NUM = 2000
     
     def __init__(self, v_platform, v_ms_list = None, v_ms_id_list = None):
@@ -542,7 +542,7 @@ class MS_GROUP:
         return True
 
 
-    def distribute_ALL(self, task_list):
+    def distribute_ALL(self, task_list, topN):
         print 'distribute_ALL'
         if(self.log_file != None):
             self.log_file.write('distribute_ALL\n' )
@@ -564,6 +564,8 @@ class MS_GROUP:
                 if(self.log_file != None):
                         self.log_file.write('%d: %s[%e][%d] exist in %s\n' % (task_num, one_task['hash'], one_task['temperature0'], one_task['filesize'], one_ms.db_record.controll_ip) )         
             task_num += 1 
+            if(task_num >= topN):
+                break
         for one_ms in self.ms_list_allowed_add:
             one_ms.distribute_num_for_ALL = len(one_ms.add_list)        
         return True
