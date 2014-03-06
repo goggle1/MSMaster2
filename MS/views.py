@@ -90,11 +90,11 @@ def get_ms_macross(platform):
     if(platform == 'mobile'):
         sql = "select s.server_id, s.server_name, s.server_ip, s.server_port, s.controll_ip, s.controll_port, s.ml_room_id, l.room_name, \
                 s.server_version, s.protocol_version, s.is_valid, s.is_dispatch, s.is_pause \
-                from fs_server s, fs_mobile_location l where s.ml_room_id=l.room_id and s.is_valid=1 and s.type_id=1 order by s.server_id"
+                from fs_server s, fs_mobile_location l where s.ml_room_id=l.room_id and s.is_valid=1 and s.support_live=0 and s.type_id=1 order by s.server_id"
     elif(platform == 'pc'):
         sql = "select s.server_id, s.server_name, s.server_ip, s.server_port, s.controll_ip, s.controll_port, s.room_id, l.room_name, \
                 s.server_version, s.protocol_version, s.is_valid, s.is_dispatch, s.is_pause \
-                from fs_server s, fs_server_location l where s.room_id=l.room_id and s.is_valid=1 and s.type_id=1 order by s.server_id"    
+                from fs_server s, fs_server_location l where s.room_id=l.room_id and s.is_valid=1 and s.support_live=0 and s.type_id=1 order by s.server_id"    
     db.execute(sql)
     
     for row in db.cur.fetchall():
@@ -521,7 +521,7 @@ def ms_do_add_hot_tasks(platform, record):
     result = False
     tasks = task.views.get_tasks_local(platform) 
     print 'tasks count: %d' % (tasks.count())
-    hot_tasks = tasks.order_by('-temperature0')
+    hot_tasks = tasks.order_by('-temperature0', '-online_time')
     print 'hot_tasks count: %d' % (hot_tasks.count())
     for task1 in hot_tasks.iterator():
         print 'hot task: %e, %s' % (task1.temperature0, task1.hash)
@@ -529,18 +529,18 @@ def ms_do_add_hot_tasks(platform, record):
         if(one_ms == None):                        
             result = ms_all.dispatch_hot_task(task1.hash)
             if(result == None):
-                print '%e, %s, can not be dispatched\n' % (task1.temperature0, task1.hash) 
-                log_file.write('%e, %s, can not be dispatched\n' % (task1.temperature0, task1.hash))
+                print '[%s, %e]%s, can not be dispatched\n' % (task1.online_time, task1.temperature0, task1.hash) 
+                log_file.write('[%s, %e]%s, can not be dispatched\n' % (task1.online_time, task1.temperature0, task1.hash))
                 break
             else:
-                print '%e, %s, dispatched to %d, %s' % (task1.temperature0, task1.hash, result.db_record.server_id, result.db_record.controll_ip)
-                log_file.write('%e, %s, dispatched to %d, %s\n' % (task1.temperature0, task1.hash, result.db_record.server_id, result.db_record.controll_ip))
+                print '[%s, %e]%s, dispatched to %d, %s' % (task1.online_time, task1.temperature0, task1.hash, result.db_record.server_id, result.db_record.controll_ip)
+                log_file.write('[%s, %e]%s, dispatched to %d, %s\n' % (task1.online_time, task1.temperature0, task1.hash, result.db_record.server_id, result.db_record.controll_ip))
             num += 1
             if(num >= total_dispatch_num):
                 break
         else:
-            print '%e, %s, exist at %d, %s' % (task1.temperature0, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip)
-            log_file.write('%e, %s, exist at %d, %s\n' % (task1.temperature0, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))
+            print '[%s, %e]%s, exist at %d, %s' % (task1.online_time, task1.temperature0, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip)
+            log_file.write('[%s, %e] %s, exist at %d, %s\n' % (task1.online_time, task1.temperature0, task1.hash, one_ms.db_record.server_id, one_ms.db_record.controll_ip))
 
     log_file.close()
     
@@ -644,7 +644,7 @@ def ms_do_delete_cold_tasks(platform, record):
         
     # rule 1:
     log_file.write('rule 1 begin\n')
-    cold_tasks = tasks.order_by('temperature0')
+    cold_tasks = tasks.order_by('temperature0', 'online_time')
     print 'cold_tasks count: %d' % (cold_tasks.count())
     for task1 in cold_tasks.iterator():
         one_ms = ms_all.find_ms_by_task(task1.hash)

@@ -515,13 +515,14 @@ def do_auto_distribute_tasks(platform, record):
     room_list = []
     rooms_fields = rooms_value.split('|')
     for room_param in rooms_fields:
-        room_fields = room_param.split('@')
+        room_fields = room_param.split(':')
         room_topN = string.atoi(room_fields[0], 10)
         room_id = string.atoi(room_fields[1], 10)        
         one_room = ROOM_T(room_id, room_topN)
         room_list.append(one_room)
     
     rooms_topN = sys.maxint
+    topN_value = topN_value.upper()
     if(topN_value == 'ALL'):
         rooms_topN = sys.maxint
     else:
@@ -605,13 +606,14 @@ def do_auto_delete_tasks(platform, record):
     room_list = []
     rooms_fields = rooms_value.split('|')
     for room_param in rooms_fields:
-        room_fields = room_param.split('@')
+        room_fields = room_param.split(':')
         room_topN = string.atoi(room_fields[0], 10)
         room_id = string.atoi(room_fields[1], 10)        
         one_room = ROOM_T(room_id, room_topN)
         room_list.append(one_room)
     
     rooms_topN = sys.maxint
+    topN_value = topN_value.upper()
     if(topN_value == 'ALL'):
         rooms_topN = sys.maxint
     else:

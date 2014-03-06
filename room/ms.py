@@ -185,7 +185,7 @@ class MS_GROUP:
         
         for one in self.ms_list:
             print '%d, %s get tasks begin' % (one.db_record.server_id, one.db_record.controll_ip)
-            sql = "SELECT t.task_hash, ts.create_time FROM fs_task t, fs_ms_task m WHERE t.task_id = m.task_id AND m.server_id=%d" % (one.db_record.server_id)    
+            sql = "SELECT t.task_hash, t.create_time FROM fs_task t, fs_ms_task m WHERE t.task_id = m.task_id AND m.server_id=%d" % (one.db_record.server_id)    
             print sql
             db.execute(sql)      
             #print type(db.cur)  
