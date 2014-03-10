@@ -236,7 +236,8 @@ def do_add_hot_tasks(platform, record):
     num = 0
     result = False
     all_tasks = task.views.get_tasks_local(platform)
-    hot_tasks = all_tasks.order_by('-temperature0')
+    #hot_tasks = all_tasks.order_by('-temperature0')
+    hot_tasks = all_tasks.order_by('-temperature0', '-online_time')
     print 'hot_tasks count: %d' % (hot_tasks.count())
     #for task1 in hot_tasks:
     for task1 in hot_tasks.iterator():
@@ -345,7 +346,8 @@ def do_delete_cold_tasks(platform, record):
         
     # rule 1:
     log_file.write('rule 1 begin\n')
-    cold_tasks = all_tasks.order_by('temperature0')
+    #cold_tasks = all_tasks.order_by('temperature0')
+    cold_tasks = all_tasks.order_by('temperature0', 'online_time')
     print 'cold_tasks count: %d' % (cold_tasks.count())
     for task1 in cold_tasks.iterator():
         one_ms = ms_all.find_ms_by_task(task1.hash)
